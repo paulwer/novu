@@ -1,4 +1,5 @@
 export type { Notification } from './notifications';
+export type { NovuError } from './utils/errors';
 
 export enum NotificationStatus {
   READ = 'read',
