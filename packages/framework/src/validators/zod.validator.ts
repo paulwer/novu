@@ -32,8 +32,7 @@ export class ZodValidator implements Validator<ZodSchema> {
       // eslint-disable-next-line global-require
       const { zodToJsonSchema } = require('zod-to-json-schema') as typeof import('zod-to-json-schema');
 
-      // @ts-expect-error - zod-to-json-schema is not using JSONSchema7
-      return zodToJsonSchema(schema);
+      return zodToJsonSchema(schema) as JsonSchema;
     } catch (error) {
       if ((error as Error)?.message?.includes('Cannot find module')) {
         // eslint-disable-next-line no-console

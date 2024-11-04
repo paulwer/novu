@@ -1,6 +1,7 @@
 /* eslint-disable no-param-reassign */
 import { expect, it, describe, beforeEach } from 'vitest';
 import { z } from 'zod';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
 import { Client } from './client';
 import { workflow } from './resources/workflow';
 import { ExecutionStateControlsInvalidError } from './errors';
@@ -176,6 +177,184 @@ describe('validation', () => {
         expect(error).to.be.instanceOf(ExecutionStateControlsInvalidError);
         expect((error as ExecutionStateControlsInvalidError).message).to.equal(
           'Workflow with id: `zod-validation` has an invalid state. Step with id: `test-email` has invalid `controls`. Please provide the correct step controls.'
+        );
+        expect((error as ExecutionStateControlsInvalidError).data).to.deep.equal([
+          {
+            message: 'Required',
+            path: '/baz',
+          },
+        ]);
+      }
+    });
+  });
+
+  describe('class-validator', () => {
+    class ClassValidatorSchema {
+      @IsString()
+      @IsOptional()
+      foo?: string;
+      @IsNumber()
+      @IsOptional()
+      baz?: number;
+    }
+
+    it('should infer types in the step controls', async () => {
+      workflow('class-validator-validation', async ({ step }) => {
+        await step.email(
+          'class-validator-validation',
+          async (controls) => {
+            // @ts-expect-error - Type 'number' is not assignable to type 'string'.
+            controls.foo = 123;
+            // @ts-expect-error - Type 'string' is not assignable to type 'number'.
+            controls.baz = '123';
+
+            return {
+              subject: 'Test subject',
+              body: 'Test body',
+            };
+          },
+          {
+            controlSchema: ClassValidatorSchema,
+            skip: (controls) => {
+              // @ts-expect-error - Type 'number' is not assignable to type 'string'.
+              controls.foo = 123;
+              // @ts-expect-error - Type 'string' is not assignable to type 'number'.
+              controls.baz = '123';
+
+              return true;
+            },
+            providers: {
+              sendgrid: async ({ controls, outputs }) => {
+                // @ts-expect-error - Type 'number' is not assignable to type 'string'.
+                controls.foo = 123;
+                // @ts-expect-error - Type 'string' is not assignable to type 'number'.
+                controls.baz = '123';
+
+                // @ts-expect-error - Type 'number' is not assignable to type 'string'.
+                outputs.body = 123;
+                // @ts-expect-error - Type 'number' is not assignable to type 'string'.
+                outputs.subject = 123;
+
+                return {
+                  ipPoolName: 'test',
+                };
+              },
+            },
+          }
+        );
+      });
+    });
+
+    it('should infer types in the workflow payload', async () => {
+      workflow(
+        'class-validator-validation',
+        async ({ step, payload }) => {
+          await step.email('class-validator-validation', async () => {
+            // @ts-expect-error - Type 'number' is not assignable to type 'string'.
+            payload.foo = 123;
+            // @ts-expect-error - Type 'string' is not assignable to type 'number'.
+            payload.baz = '123';
+
+            return {
+              subject: 'Test subject',
+              body: 'Test body',
+            };
+          });
+        },
+        {
+          payloadSchema: ClassValidatorSchema,
+        }
+      );
+    });
+
+    it('should infer types in the workflow controls', async () => {
+      workflow(
+        'class-validator-validation',
+        async ({ step, controls }) => {
+          await step.email('class-validator-validation', async () => {
+            // @ts-expect-error - Type 'number' is not assignable to type 'string'.
+            controls.foo = 123;
+            // @ts-expect-error - Type 'string' is not assignable to type 'number'.
+            controls.baz = '123';
+
+            return {
+              subject: 'Test subject',
+              body: 'Test body',
+            };
+          });
+        },
+        {
+          controlSchema: ClassValidatorSchema,
+        }
+      );
+    });
+
+    it('should transform a class-validator schema to a json schema during discovery', async () => {
+      client.addWorkflows([
+        workflow('class-validator-validation', async ({ step }) => {
+          await step.email(
+            'class-validator-validation',
+            async () => ({
+              subject: 'Test subject',
+              body: 'Test body',
+            }),
+            {
+              controlSchema: ClassValidatorSchema,
+            }
+          );
+        }),
+      ]);
+
+      const discoverResult = client.discover();
+      const stepControlSchema = discoverResult.workflows[0].steps[0].controls.schema;
+
+      expect(stepControlSchema).to.deep.include({
+        additionalProperties: false,
+        properties: {
+          foo: {
+            type: 'string',
+          },
+          baz: {
+            type: 'number',
+          },
+        },
+        required: ['foo', 'baz'],
+        type: 'object',
+      });
+    });
+
+    it('should throw an error if a property is missing', async () => {
+      client.addWorkflows([
+        workflow('class-validator-validation', async ({ step }) => {
+          await step.email(
+            'test-email',
+            async () => ({
+              subject: 'Test subject',
+              body: 'Test body',
+            }),
+            {
+              controlSchema: ClassValidatorSchema,
+            }
+          );
+        }),
+      ]);
+
+      try {
+        await client.executeWorkflow({
+          action: PostActionEnum.EXECUTE,
+          workflowId: 'class-validator-validation',
+          controls: {
+            foo: '341',
+          },
+          payload: {},
+          stepId: 'test-email',
+          state: [],
+          subscriber: {},
+        });
+      } catch (error) {
+        expect(error).to.be.instanceOf(ExecutionStateControlsInvalidError);
+        expect((error as ExecutionStateControlsInvalidError).message).to.equal(
+          'Workflow with id: `class-validator-validation` has an invalid state. Step with id: `test-email` has invalid `controls`. Please provide the correct step controls.'
         );
         expect((error as ExecutionStateControlsInvalidError).data).to.deep.equal([
           {

@@ -2,8 +2,10 @@ import type { FromSchema, FromSchemaUnvalidated, JsonSchema, Schema } from '../t
 import type { ValidateResult } from '../types/validator.types';
 import { JsonSchemaValidator } from './json-schema.validator';
 import { ZodValidator } from './zod.validator';
+import { ClassValidatorValidator } from './class-validator.validator';
 
 const zodValidator = new ZodValidator();
+const classValidatorValidator = new ClassValidatorValidator();
 const jsonSchemaValidator = new JsonSchemaValidator();
 
 export const validateData = async <
@@ -16,6 +18,8 @@ export const validateData = async <
 ): Promise<ValidateResult<T_Validated>> => {
   if (zodValidator.canHandle(schema)) {
     return zodValidator.validate(data, schema);
+  } else if (classValidatorValidator.canHandle(schema)) {
+    return classValidatorValidator.validate(data, schema);
   } else if (jsonSchemaValidator.canHandle(schema)) {
     return jsonSchemaValidator.validate(data, schema);
   }
@@ -26,6 +30,8 @@ export const validateData = async <
 export const transformSchema = (schema: Schema): JsonSchema => {
   if (zodValidator.canHandle(schema)) {
     return zodValidator.transformToJsonSchema(schema);
+  } else if (classValidatorValidator.canHandle(schema)) {
+    return classValidatorValidator.transformToJsonSchema(schema);
   } else if (jsonSchemaValidator.canHandle(schema)) {
     return jsonSchemaValidator.transformToJsonSchema(schema);
   }

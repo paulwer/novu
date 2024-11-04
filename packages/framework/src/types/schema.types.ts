@@ -3,6 +3,9 @@ import zod from 'zod';
 
 export type JsonSchema = JSONSchema;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ClassType<T = any> = new (...args: any[]) => T;
+
 /**
  * A schema used to validate a JSON object.
  *
@@ -10,7 +13,7 @@ export type JsonSchema = JSONSchema;
  * - JSONSchema
  * - ZodSchema
  */
-export type Schema = JsonSchema | zod.ZodSchema;
+export type Schema = JsonSchema | zod.ZodSchema | ClassType;
 
 /**
  * Infer the type of a Schema for unvalidated data.
@@ -36,8 +39,11 @@ export type FromSchemaUnvalidated<T extends Schema> =
     : // ZodSchema
       T extends zod.ZodSchema
       ? zod.input<T>
-      : // All schema types exhausted.
-        never;
+      : // ClassValidatorSchema
+        T extends ClassType<infer U>
+        ? U
+        : // All schema types exhausted.
+          never;
 
 /**
  * Infer the type of a Schema for validated data.
@@ -63,5 +69,8 @@ export type FromSchema<T extends Schema> =
     : // ZodSchema
       T extends zod.ZodSchema
       ? zod.infer<T>
-      : // All schema types exhausted.
-        never;
+      : // ClassValidatorSchema
+        T extends ClassType<infer U>
+        ? U
+        : // All schema types exhausted.
+          never;

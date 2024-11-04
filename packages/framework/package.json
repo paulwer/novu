@@ -25,7 +25,7 @@
     "next",
     "nuxt",
     "remix",
-    "sveltekit",  
+    "sveltekit",
     "README.md"
   ],
   "scripts": {
@@ -170,9 +170,13 @@
     "@sveltejs/kit": ">=1.27.3",
     "@vercel/node": ">=2.15.9",
     "aws-lambda": ">=1.0.7",
+    "class-transformer": ">=0.5.1",
+    "class-validator": ">=0.14.0",
+    "class-validator-jsonschema": ">=5.0.0",
     "express": ">=4.19.2",
     "h3": ">=1.8.1",
     "next": ">=12.0.0",
+    "reflect-metadata": ">=0.2.2",
     "zod": ">=3.0.0",
     "zod-to-json-schema": ">=3.0.0"
   },
@@ -201,6 +205,18 @@
     "next": {
       "optional": true
     },
+    "class-transformer": {
+      "optional": true
+    },
+    "class-validator": {
+      "optional": true
+    },
+    "class-validator-jsonschema": {
+      "optional": true
+    },
+    "reflect-metadata": {
+      "optional": true
+    },
     "zod": {
       "optional": true
     },
@@ -219,11 +235,15 @@
     "@types/sanitize-html": "2.11.0",
     "@vercel/node": "^2.15.9",
     "aws-lambda": "^1.0.7",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "class-validator-jsonschema": "^5.0.1",
     "express": "^4.19.2",
     "h3": "^1.11.1",
     "madge": "^8.0.0",
     "next": "^13.5.4",
     "prettier": "^3.2.5",
+    "reflect-metadata": "^0.2.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.0.2",
     "tsx": "4.16.2",
@@ -244,6 +264,8 @@
     "sanitize-html": "^2.13.0"
   },
   "nx": {
-    "tags": ["package:public"]
+    "tags": [
+      "package:public"
+    ]
   }
 }
