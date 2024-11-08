@@ -1,37 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { ZodSchema, z } from 'zod';
-import { IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
 import { validateData, transformSchema } from './base.validator';
 import { ClassType, JsonSchema, Schema } from '../types/schema.types';
-import 'reflect-metadata';
+import { SimpleStringSchema, NestedSchema, SimpleStringAndNumberSchema } from './fixures/class-validator.fixtures';
 
 const schemas = ['zod', 'class', 'json'] as const;
-
-// Definitions of class-validator schemas
-class SimpleStringSchema {
-  @IsString()
-  @IsOptional()
-  name?: string;
-}
-class NestedChildrenSchema {
-  @IsNumber()
-  age!: number;
-}
-class NestedSchema {
-  @IsString()
-  name!: string;
-
-  @ValidateNested()
-  @Type(() => NestedChildrenSchema)
-  nested!: NestedChildrenSchema;
-}
-class SimpleStringAndNumberSchema {
-  @IsString()
-  name!: string;
-  @IsNumber()
-  age!: number;
-}
 
 describe('validators', () => {
   describe('validateData', () => {
@@ -316,6 +289,7 @@ describe('validators', () => {
           success: false,
           errors: {
             zod: [{ message: 'Expected number, received string', path: '/numVal' }],
+            class: null, // ClassValidator has no support for `anyOf`
             /*
              * TODO: use discriminator to get the correct error message.
              *
@@ -330,7 +304,6 @@ describe('validators', () => {
              *
              * @see https://ajv.js.org/json-schema.html#discriminator
              */
-            class: null, // ClassValidator has no support for `anyOf`
             json: [
               {
                 message: "must have required property 'stringVal'",
