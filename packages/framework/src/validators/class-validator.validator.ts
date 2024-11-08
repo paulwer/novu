@@ -100,8 +100,23 @@ export class ClassValidatorValidator implements Validator<ClassType> {
 
   async transformToJsonSchema(schema: ClassType): Promise<JsonSchema> {
     try {
-      // eslint-disable-next-line global-require
-      const { defaultMetadataStorage } = require('class-transformer/cjs/storage');
+      // @ts-ignore
+      const { defaultMetadataStorage: defaultMetadataStorageCjs } = await import('class-transformer/cjs/storage');
+      // @ts-ignore
+      const { defaultMetadataStorage: defaultMetadataStorageEsm2015 } = await import(
+        // @ts-ignore
+        'class-transformer/esm2015/storage'
+      );
+      // @ts-ignore
+      const { defaultMetadataStorage: defaultMetadataStorageEsm5 } = await import('class-transformer/esm5/storage');
+      // @ts-ignore
+      const defaultMetadataStorage = defaultMetadataStorageCjs._typeMetadatas.size
+        ? defaultMetadataStorageCjs
+        : defaultMetadataStorageEsm2015._typeMetadatas.size
+          ? defaultMetadataStorageEsm2015
+          : defaultMetadataStorageEsm5._typeMetadatas.size
+            ? defaultMetadataStorageEsm5
+            : undefined;
       const { getMetadataStorage } = await import('class-validator');
       const { targetConstructorToSchema, validationMetadatasToSchemas } = await import('class-validator-jsonschema');
 
