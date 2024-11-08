@@ -102,7 +102,7 @@ export class ClassValidatorValidator implements Validator<ClassType> {
     try {
       /*
        * TODO: replace with direct import, when metadataStorage is exported by default: https://github.com/typestack/class-transformer/issues/563#issuecomment-803262394
-       * @ts-ignore
+       * @ts-expect-error - class-transformer doesn't export `defaultMetadataStorage` from the root module
        */
       const { defaultMetadataStorage: defaultMetadataStorageCjs } = await import('class-transformer/cjs/storage');
       // @ts-ignore
