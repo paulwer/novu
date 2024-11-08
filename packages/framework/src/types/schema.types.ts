@@ -8,7 +8,7 @@ import { Prettify } from './util.types';
 export type JsonSchema = JSONSchema;
 
 /**
- * A class type.
+ * A type that represents a class.
  */
 export type ClassType<T = unknown> = new (...args: unknown[]) => T;
 
