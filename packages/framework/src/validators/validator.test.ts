@@ -572,7 +572,7 @@ describe('validators', () => {
         testCases
           .filter((testCase) => testCase.schemas[schema] !== null)
           .forEach((testCase) => {
-            it(testCase.title, () => {
+            it(testCase.title, async () => {
               const result = await transformSchema(testCase.schemas[schema] as Schema);
               expect(result).deep.contain(testCase.result, JSON.stringify(result));
             });

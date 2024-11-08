@@ -98,15 +98,12 @@ export class ClassValidatorValidator implements Validator<ClassType> {
     }
   }
 
-  transformToJsonSchema(schema: ClassType): JsonSchema {
+  async transformToJsonSchema(schema: ClassType): Promise<JsonSchema> {
     try {
       // eslint-disable-next-line global-require
       const { defaultMetadataStorage } = require('class-transformer/cjs/storage');
-      // eslint-disable-next-line global-require
-      const { getMetadataStorage } = require('class-validator') as typeof import('class-validator');
-      // eslint-disable-next-line global-require, prettier/prettier
-      const { targetConstructorToSchema, validationMetadatasToSchemas } =
-        require('class-validator-jsonschema') as typeof import('class-validator-jsonschema');
+      const { getMetadataStorage } = await import('class-validator');
+      const { targetConstructorToSchema, validationMetadatasToSchemas } = await import('class-validator-jsonschema');
 
       const schemas = validationMetadatasToSchemas({
         classValidatorMetadataStorage: getMetadataStorage(),
