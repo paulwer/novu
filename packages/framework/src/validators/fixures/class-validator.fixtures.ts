@@ -1,11 +1,10 @@
 import 'reflect-metadata';
-import { IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsNumber, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SimpleStringSchema {
   @IsString()
-  @IsOptional()
-  name?: string;
+  name!: string;
 }
 
 class NestedChildrenSchema {
