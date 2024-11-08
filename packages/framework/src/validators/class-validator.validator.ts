@@ -102,24 +102,9 @@ export class ClassValidatorValidator implements Validator<ClassType> {
     try {
       /*
        * TODO: replace with direct import, when metadataStorage is exported by default: https://github.com/typestack/class-transformer/issues/563#issuecomment-803262394
-       * @ts-expect-error - class-transformer doesn't export `defaultMetadataStorage` from the root module
        */
-      const { defaultMetadataStorage: defaultMetadataStorageCjs } = await import('class-transformer/cjs/storage');
-      // @ts-ignore
-      const { defaultMetadataStorage: defaultMetadataStorageEsm2015 } = await import(
-        // @ts-ignore
-        'class-transformer/esm2015/storage'
-      );
-      // @ts-ignore
-      const { defaultMetadataStorage: defaultMetadataStorageEsm5 } = await import('class-transformer/esm5/storage');
-      // @ts-ignore
-      const defaultMetadataStorage = defaultMetadataStorageCjs._typeMetadatas.size
-        ? defaultMetadataStorageCjs
-        : defaultMetadataStorageEsm2015._typeMetadatas.size
-          ? defaultMetadataStorageEsm2015
-          : defaultMetadataStorageEsm5._typeMetadatas.size
-            ? defaultMetadataStorageEsm5
-            : undefined;
+      // @ts-expect-error - class-transformer doesn't export `defaultMetadataStorage` from the root module
+      const { defaultMetadataStorage } = await import('class-transformer/cjs/storage');
       const { getMetadataStorage } = await import('class-validator');
       const { targetConstructorToSchema, validationMetadatasToSchemas } = await import('class-validator-jsonschema');
 
