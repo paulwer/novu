@@ -100,7 +100,10 @@ export class ClassValidatorValidator implements Validator<ClassType> {
 
   async transformToJsonSchema(schema: ClassType): Promise<JsonSchema> {
     try {
-      // @ts-ignore
+      /*
+       * TODO: replace with direct import, when metadataStorage is exported by default: https://github.com/typestack/class-transformer/issues/563#issuecomment-803262394
+       * @ts-ignore
+       */
       const { defaultMetadataStorage: defaultMetadataStorageCjs } = await import('class-transformer/cjs/storage');
       // @ts-ignore
       const { defaultMetadataStorage: defaultMetadataStorageEsm2015 } = await import(
