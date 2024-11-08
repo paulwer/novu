@@ -1,19 +1,31 @@
 import type { JSONSchema, FromSchema as JsonSchemaInfer } from 'json-schema-to-ts';
 import zod from 'zod';
+import { Prettify } from './util.types';
 
+/**
+ * A JSON schema.
+ */
 export type JsonSchema = JSONSchema;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ClassType<T = any> = new (...args: any[]) => T;
+/**
+ * A class type.
+ */
+export type ClassType<T = unknown> = new (...args: unknown[]) => T;
+
+/**
+ * Extract the properties of a class type.
+ */
+export type ClassPropsInfer<T extends ClassType> = T extends ClassType<infer R> ? Prettify<R> : never;
 
 /**
  * A schema used to validate a JSON object.
  *
  * Supported schemas:
  * - JSONSchema
+ * - ClassValidatorSchema
  * - ZodSchema
  */
-export type Schema = JsonSchema | zod.ZodSchema | ClassType;
+export type Schema = JsonSchema | zod.ZodType | ClassType;
 
 /**
  * Infer the type of a Schema for unvalidated data.
@@ -40,8 +52,8 @@ export type FromSchemaUnvalidated<T extends Schema> =
       T extends zod.ZodSchema
       ? zod.input<T>
       : // ClassValidatorSchema
-        T extends ClassType<infer U>
-        ? U
+        T extends ClassType
+        ? ClassPropsInfer<T>
         : // All schema types exhausted.
           never;
 
@@ -70,7 +82,7 @@ export type FromSchema<T extends Schema> =
       T extends zod.ZodSchema
       ? zod.infer<T>
       : // ClassValidatorSchema
-        T extends ClassType<infer U>
-        ? U
+        T extends ClassType
+        ? ClassPropsInfer<T>
         : // All schema types exhausted.
           never;
