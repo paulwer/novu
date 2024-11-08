@@ -66,12 +66,9 @@ export class ClassValidatorValidator implements Validator<ClassType> {
     T_Validated = FromSchema<T_Schema>,
   >(data: T_Unvalidated, schema: T_Schema): Promise<ValidateResult<T_Validated>> {
     try {
-      // eslint-disable-next-line global-require
-      require('reflect-metadata') as typeof import('reflect-metadata');
-      // eslint-disable-next-line global-require
-      const { plainToInstance, instanceToPlain } = require('class-transformer') as typeof import('class-transformer');
-      // eslint-disable-next-line global-require
-      const { validate } = require('class-validator') as typeof import('class-validator');
+      await import('reflect-metadata');
+      const { plainToInstance, instanceToPlain } = await import('class-transformer');
+      const { validate } = await import('class-validator');
 
       // Convert plain data to an instance of the schema class
       const instance = plainToInstance(schema, data);
