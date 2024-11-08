@@ -57,7 +57,11 @@ function formatErrors(errors: ValidationError[], parentPath = ''): { path: strin
 
 export class ClassValidatorValidator implements Validator<ClassType> {
   canHandle(schema: Schema): schema is ClassType {
-    return typeof schema === 'function' && schema.prototype !== undefined && schema.prototype.constructor === schema;
+    return (
+      typeof (schema as ClassType) === 'function' &&
+      (schema as ClassType).prototype !== undefined &&
+      (schema as ClassType).prototype.constructor === schema
+    );
   }
 
   async validate<
