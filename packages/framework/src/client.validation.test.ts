@@ -191,8 +191,7 @@ describe('validation', () => {
   describe('class-validator', () => {
     class ClassValidatorSchema {
       @IsString()
-      @IsOptional()
-      foo?: string;
+      foo!: string;
       @IsNumber()
       @IsOptional()
       baz?: number;
@@ -290,7 +289,7 @@ describe('validation', () => {
     });
 
     it('should transform a class-validator schema to a json schema during discovery', async () => {
-      client.addWorkflows([
+      await client.addWorkflows([
         workflow('class-validator-validation', async ({ step }) => {
           await step.email(
             'class-validator-validation',
@@ -308,7 +307,7 @@ describe('validation', () => {
       const discoverResult = client.discover();
       const stepControlSchema = discoverResult.workflows[0].steps[0].controls.schema;
 
-      expect(stepControlSchema).to.deep.include({
+      expect(stepControlSchema).to.deep.equal({
         additionalProperties: false,
         properties: {
           foo: {
@@ -318,13 +317,13 @@ describe('validation', () => {
             type: 'number',
           },
         },
-        required: ['foo', 'baz'],
+        required: ['foo'],
         type: 'object',
       });
     });
 
     it('should throw an error if a property is missing', async () => {
-      client.addWorkflows([
+      await client.addWorkflows([
         workflow('class-validator-validation', async ({ step }) => {
           await step.email(
             'test-email',
