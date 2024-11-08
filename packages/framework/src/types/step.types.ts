@@ -64,8 +64,7 @@ export type ActionStep<
   /**
    * The controls for the step.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  T_Controls extends Record<string, any> = FromSchema<T_ControlSchema>,
+  T_Controls extends Record<string, unknown> = FromSchema<T_ControlSchema>,
 >(
   /**
    * The name of the step. This is used to identify the step in the workflow.
@@ -95,8 +94,7 @@ export type CustomStep = <
   /**
    * The controls for the step.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  T_Controls extends Record<string, any> = FromSchema<T_ControlSchema>,
+  T_Controls extends Record<string, unknown> = FromSchema<T_ControlSchema>,
   /*
    * These intermediary types are needed to capture the types in a single type instance
    * to stop Typescript from erroring with:
@@ -155,8 +153,7 @@ export type ChannelStep<
   /**
    * The controls for the step.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  T_Controls extends Record<string, any> = FromSchema<T_ControlSchema>,
+  T_Controls extends Record<string, unknown> = FromSchema<T_ControlSchema>,
 >(
   /**
    * The name of the step. This is used to identify the step in the workflow.
