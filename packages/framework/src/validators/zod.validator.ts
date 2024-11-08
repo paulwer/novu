@@ -27,10 +27,9 @@ export class ZodValidator implements Validator<ZodSchema> {
     }
   }
 
-  transformToJsonSchema(schema: ZodSchema): JsonSchema {
+  async transformToJsonSchema(schema: ZodSchema): Promise<JsonSchema> {
     try {
-      // eslint-disable-next-line global-require
-      const { zodToJsonSchema } = require('zod-to-json-schema') as typeof import('zod-to-json-schema');
+      const { zodToJsonSchema } = await import('zod-to-json-schema');
 
       return zodToJsonSchema(schema) as JsonSchema;
     } catch (error) {

@@ -30,6 +30,7 @@ import {
 } from '@/components/primitives/tooltip';
 import { RiMore2Fill, RiPlayCircleLine } from 'react-icons/ri';
 import { useSyncWorkflow } from '@/hooks/use-sync-workflow';
+import { HoverToCopy } from '@/components/primitives/hover-to-copy';
 
 type WorkflowRowProps = {
   workflow: WorkflowListResponseDto;
@@ -41,9 +42,11 @@ export const WorkflowRow = ({ workflow }: WorkflowRowProps) => {
 
   const isV1Workflow = workflow.origin === WorkflowOriginEnum.NOVU_CLOUD_V1;
   const workflowLink = isV1Workflow
-    ? buildRoute(LEGACY_ROUTES.EDIT_WORKFLOW, { workflowId: workflow._id })
+    ? buildRoute(LEGACY_ROUTES.EDIT_WORKFLOW, {
+        workflowSlug: workflow.slug,
+      })
     : buildRoute(ROUTES.EDIT_WORKFLOW, {
-        environmentId: currentEnvironment?._id ?? '',
+        environmentSlug: currentEnvironment?.slug ?? '',
         workflowSlug: workflow.slug,
       });
 
@@ -66,7 +69,9 @@ export const WorkflowRow = ({ workflow }: WorkflowRowProps) => {
             <TruncatedText className="cursor-pointer" text={workflow.name} />
           </Link>
         </div>
-        <TruncatedText className="text-foreground-400 font-code block text-xs" text={workflow.workflowId} />
+        <HoverToCopy valueToCopy={workflow.workflowId}>
+          <TruncatedText className="text-foreground-400 font-code block text-xs" text={workflow.workflowId} />
+        </HoverToCopy>
       </TableCell>
       <TableCell>
         <WorkflowStatus status={workflow.status} />

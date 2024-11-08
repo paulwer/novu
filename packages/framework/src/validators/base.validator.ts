@@ -27,7 +27,7 @@ export const validateData = async <
   throw new Error('Invalid schema');
 };
 
-export const transformSchema = (schema: Schema): JsonSchema => {
+export const transformSchema = async (schema: Schema): Promise<JsonSchema> => {
   if (zodValidator.canHandle(schema)) {
     return zodValidator.transformToJsonSchema(schema);
   } else if (classValidatorValidator.canHandle(schema)) {

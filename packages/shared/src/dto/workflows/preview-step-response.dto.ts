@@ -1,5 +1,6 @@
 import { ChannelTypeEnum } from '../../types';
-import { ControlPreviewIssueTypeEnum } from '../step-schemas';
+import { SubscriberDto } from '../subscriber';
+import { ContentIssue } from './workflow-commons-fields';
 
 export class RenderOutput {}
 
@@ -54,14 +55,15 @@ export class InAppRenderOutput extends RenderOutput {
   };
 }
 
-export class ControlPreviewIssue {
-  issueType: ControlPreviewIssueTypeEnum;
-  variableName?: string;
-  message: string;
+export class PreviewPayload {
+  subscriber?: Partial<SubscriberDto>;
+  payload?: Record<string, unknown>;
+  steps?: Record<string, unknown>; // step.stepId.unknown
 }
 
 export class GeneratePreviewResponseDto {
-  issues: Record<string, ControlPreviewIssue[]>;
+  previewPayloadExample: PreviewPayload;
+  issues: Record<string, ContentIssue[]>;
   result?:
     | {
         type: ChannelTypeEnum.EMAIL;
