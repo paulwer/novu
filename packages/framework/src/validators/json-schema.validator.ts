@@ -43,7 +43,7 @@ export class JsonSchemaValidator implements Validator<JsonSchema> {
       !!(schema as JsonSchema).oneOf;
 
     if (canHandle) {
-      await checkDependencies(this.requiredImports, 'json-schema');
+      await checkDependencies(this.requiredImports, 'JSON schema');
     }
 
     return canHandle;
@@ -63,7 +63,6 @@ export class JsonSchemaValidator implements Validator<JsonSchema> {
     // ajv mutates the data, so we need to clone it to avoid side effects
     const clonedData = cloneData(data);
 
-    // const valid = validateFn(data);
     const valid = validateFn(clonedData);
 
     if (valid) {

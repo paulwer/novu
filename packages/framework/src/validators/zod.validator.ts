@@ -1,11 +1,16 @@
-import zod from 'zod';
-
-import type { FromSchema, FromSchemaUnvalidated, Schema, JsonSchema, ZodSchemaMinimal } from '../types/schema.types';
+import type {
+  FromSchema,
+  FromSchemaUnvalidated,
+  Schema,
+  JsonSchema,
+  ZodSchemaMinimal,
+  ZodSchema,
+} from '../types/schema.types';
 import type { ValidateResult, Validator } from '../types/validator.types';
 import { checkDependencies } from '../utils/import.utils';
 import { ImportRequirement } from '../types/import.types';
 
-export class ZodValidator implements Validator<zod.ZodType> {
+export class ZodValidator implements Validator<ZodSchema> {
   readonly requiredImports: readonly ImportRequirement[] = [
     {
       name: 'zod',
@@ -23,14 +28,14 @@ export class ZodValidator implements Validator<zod.ZodType> {
     const canHandle = (schema as ZodSchemaMinimal).safeParseAsync !== undefined;
 
     if (canHandle) {
-      await checkDependencies(this.requiredImports, 'zod schema');
+      await checkDependencies(this.requiredImports, 'Zod schema');
     }
 
     return canHandle;
   }
 
   async validate<
-    T_Schema extends zod.ZodType = zod.ZodType,
+    T_Schema extends ZodSchema = ZodSchema,
     T_Unvalidated = FromSchemaUnvalidated<T_Schema>,
     T_Validated = FromSchema<T_Schema>,
   >(data: T_Unvalidated, schema: T_Schema): Promise<ValidateResult<T_Validated>> {
@@ -48,7 +53,7 @@ export class ZodValidator implements Validator<zod.ZodType> {
     }
   }
 
-  async transformToJsonSchema(schema: zod.ZodType): Promise<JsonSchema> {
+  async transformToJsonSchema(schema: ZodSchema): Promise<JsonSchema> {
     const { zodToJsonSchema } = await import('zod-to-json-schema');
 
     // TODO: zod-to-json-schema is not using JSONSchema7
