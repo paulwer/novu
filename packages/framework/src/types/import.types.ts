@@ -12,8 +12,8 @@ export type ImportRequirement = {
    */
   name: string;
   /**
-   * The import of the dependency. This is necessary to ensure that the bundler will make
-   * the dependency available for usage during tree-shaking.
+   * The import of the dependency. An explicit `import()` call is necessary to ensure
+   * that the bundler will make the dependency available for usage during tree-shaking.
    *
    * @example
    * ```typescript
