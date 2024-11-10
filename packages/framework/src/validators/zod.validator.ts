@@ -1,19 +1,40 @@
-import { ZodSchema } from 'zod';
+import zod from 'zod';
 
-import type { FromSchema, FromSchemaUnvalidated, JsonSchema, Schema } from '../types/schema.types';
+import type { FromSchema, FromSchemaUnvalidated, Schema, JsonSchema, ZodSchemaMinimal } from '../types/schema.types';
 import type { ValidateResult, Validator } from '../types/validator.types';
+import { checkDependencies } from '../utils/import.utils';
+import { ImportRequirement } from '../types/import.types';
 
-export class ZodValidator implements Validator<ZodSchema> {
-  canHandle(schema: Schema): schema is ZodSchema {
-    return (schema as ZodSchema).safeParseAsync !== undefined;
+export class ZodValidator implements Validator<zod.ZodType> {
+  readonly requiredImports: readonly ImportRequirement[] = [
+    {
+      name: 'zod',
+      import: import('zod'),
+      exports: ['ZodType'],
+    },
+    {
+      name: 'zod-to-json-schema',
+      import: import('zod-to-json-schema'),
+      exports: ['zodToJsonSchema'],
+    },
+  ];
+
+  async canHandle(schema: Schema): Promise<boolean> {
+    const canHandle = (schema as ZodSchemaMinimal).safeParseAsync !== undefined;
+
+    if (canHandle) {
+      await checkDependencies(this.requiredImports, 'zod schema');
+    }
+
+    return canHandle;
   }
 
   async validate<
-    T_Schema extends ZodSchema = ZodSchema,
+    T_Schema extends zod.ZodType = zod.ZodType,
     T_Unvalidated = FromSchemaUnvalidated<T_Schema>,
     T_Validated = FromSchema<T_Schema>,
   >(data: T_Unvalidated, schema: T_Schema): Promise<ValidateResult<T_Validated>> {
-    const result = schema.safeParse(data);
+    const result = await schema.safeParseAsync(data);
     if (result.success) {
       return { success: true, data: result.data as T_Validated };
     } else {
@@ -27,21 +48,10 @@ export class ZodValidator implements Validator<ZodSchema> {
     }
   }
 
-  async transformToJsonSchema(schema: ZodSchema): Promise<JsonSchema> {
-    try {
-      const { zodToJsonSchema } = await import('zod-to-json-schema');
+  async transformToJsonSchema(schema: zod.ZodType): Promise<JsonSchema> {
+    const { zodToJsonSchema } = await import('zod-to-json-schema');
 
-      // TODO: zod-to-json-schema is not using JSONSchema7
-      return zodToJsonSchema(schema) as JsonSchema;
-    } catch (error) {
-      if ((error as Error)?.message?.includes('Cannot find module')) {
-        // eslint-disable-next-line no-console
-        console.error(
-          'Tried to use a zod schema in @novu/framework without `zod-to-json-schema` installed. ' +
-            'Please install it by running `npm install zod-to-json-schema`.'
-        );
-      }
-      throw error;
-    }
+    // TODO: zod-to-json-schema is not using JSONSchema7
+    return zodToJsonSchema(schema) as JsonSchema;
   }
 }

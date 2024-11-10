@@ -1,6 +1,14 @@
 import { ValidationError } from 'class-validator';
-import type { ClassType, FromSchema, FromSchemaUnvalidated, JsonSchema, Schema } from '../types/schema.types';
+import type {
+  FromSchema,
+  FromSchemaUnvalidated,
+  Schema,
+  JsonSchema,
+  ClassValidatorSchema,
+} from '../types/schema.types';
 import type { ValidateResult, Validator } from '../types/validator.types';
+import { checkDependencies } from '../utils/import.utils';
+import { ImportRequirement } from '../types/import.types';
 
 // Function to recursively add `additionalProperties: false` to the schema
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,87 +63,101 @@ function formatErrors(errors: ValidationError[], parentPath = ''): { path: strin
   });
 }
 
-export class ClassValidatorValidator implements Validator<ClassType> {
-  canHandle(schema: Schema): schema is ClassType {
-    return (
-      typeof (schema as ClassType) === 'function' &&
-      (schema as ClassType).prototype !== undefined &&
-      (schema as ClassType).prototype.constructor === schema
-    );
+export class ClassValidatorValidator implements Validator<ClassValidatorSchema> {
+  readonly requiredImports: readonly ImportRequirement[] = [
+    {
+      name: 'class-validator',
+      import: import('class-validator'),
+      exports: ['validate', 'getMetadataStorage'],
+    },
+    {
+      name: 'class-transformer',
+      import: import('class-transformer'),
+      exports: ['plainToInstance', 'instanceToPlain'],
+    },
+    {
+      name: 'class-transformer',
+      // @ts-expect-error - class-transformer doesn't export `defaultMetadataStorage` from the root module
+      import: import('class-transformer/cjs/storage'),
+      exports: ['defaultMetadataStorage'],
+    },
+    {
+      name: 'reflect-metadata',
+      import: import('reflect-metadata'),
+      exports: [],
+    },
+    {
+      name: 'class-validator-jsonschema',
+      import: import('class-validator-jsonschema'),
+      exports: ['validationMetadatasToSchemas', 'targetConstructorToSchema'],
+    },
+  ];
+
+  async canHandle(schema: Schema): Promise<boolean> {
+    const canHandle =
+      typeof (schema as ClassValidatorSchema) === 'function' &&
+      (schema as ClassValidatorSchema).prototype !== undefined &&
+      (schema as ClassValidatorSchema).prototype.constructor === schema;
+
+    if (canHandle) {
+      await checkDependencies(this.requiredImports, 'class-validator schema');
+    }
+
+    return canHandle;
   }
 
   async validate<
-    T_Schema extends ClassType = ClassType,
+    T_Schema extends ClassValidatorSchema = ClassValidatorSchema,
     T_Unvalidated = FromSchemaUnvalidated<T_Schema>,
     T_Validated = FromSchema<T_Schema>,
   >(data: T_Unvalidated, schema: T_Schema): Promise<ValidateResult<T_Validated>> {
-    try {
-      await import('reflect-metadata');
-      const { plainToInstance, instanceToPlain } = await import('class-transformer');
-      const { validate } = await import('class-validator');
+    const { plainToInstance, instanceToPlain } = await import('class-transformer');
+    const { validate } = await import('class-validator');
 
-      // Convert plain data to an instance of the schema class
-      const instance = plainToInstance(schema, data);
+    // Convert plain data to an instance of the schema class
+    const instance = plainToInstance(schema, data);
 
-      // Validate the instance
-      const errors = await validate(instance as object, { whitelist: true });
+    // Validate the instance
+    const errors = await validate(instance as object, { whitelist: true });
 
-      // if undefined, then something went wrong
-      if (!instance && !!data) throw new Error('Failed to convert data to an instance of the schema class');
+    // if undefined, then something went wrong
+    if (!instance && !!data) throw new Error('Failed to convert data to an instance of the schema class');
 
-      if (errors.length === 0) {
-        return { success: true, data: instanceToPlain(instance) as T_Validated };
-      } else {
-        return {
-          success: false,
-          errors: formatErrors(errors),
-        };
-      }
-    } catch (error) {
-      if ((error as Error)?.message?.includes('Cannot find module')) {
-        throw new Error(
-          'Tried to use a class-validator schema in @novu/framework without `class-validator`, `class-transformer` or `reflect-metadata` installed. ' +
-            'Please install it by running `npm install class-validator class-transformer reflect-metadata`.'
-        );
-      }
-      throw error;
+    if (errors.length === 0) {
+      return { success: true, data: instanceToPlain(instance) as T_Validated };
+    } else {
+      return {
+        success: false,
+        errors: formatErrors(errors),
+      };
     }
   }
 
-  async transformToJsonSchema(schema: ClassType): Promise<JsonSchema> {
-    try {
-      /*
-       * TODO: replace with direct import, when defaultMetadataStorage is exported by default
-       * @see https://github.com/typestack/class-transformer/issues/563#issuecomment-803262394
-       */
-      // @ts-expect-error - class-transformer doesn't export `defaultMetadataStorage` from the root module
-      const { defaultMetadataStorage } = await import('class-transformer/cjs/storage');
-      const { getMetadataStorage } = await import('class-validator');
-      const { targetConstructorToSchema, validationMetadatasToSchemas } = await import('class-validator-jsonschema');
+  async transformToJsonSchema(schema: ClassValidatorSchema): Promise<JsonSchema> {
+    /*
+     * TODO: replace with direct import, when defaultMetadataStorage is exported by default
+     * @see https://github.com/typestack/class-transformer/issues/563#issuecomment-803262394
+     */
+    // @ts-expect-error - class-transformer doesn't export `defaultMetadataStorage` from the root module
+    const { defaultMetadataStorage } = await import('class-transformer/cjs/storage');
+    const { getMetadataStorage } = await import('class-validator');
+    const { validationMetadatasToSchemas, targetConstructorToSchema } = await import('class-validator-jsonschema');
 
-      const schemas = validationMetadatasToSchemas({
-        classValidatorMetadataStorage: getMetadataStorage(),
-        classTransformerMetadataStorage: defaultMetadataStorage,
-      });
+    const schemas = validationMetadatasToSchemas({
+      classValidatorMetadataStorage: getMetadataStorage(),
+      classTransformerMetadataStorage: defaultMetadataStorage,
+    });
 
-      return addAdditionalPropertiesFalse(
-        replaceSchemaRefs(
-          targetConstructorToSchema(schema, {
-            classValidatorMetadataStorage: getMetadataStorage(),
-            classTransformerMetadataStorage: defaultMetadataStorage,
-          }),
-          schemas
-        )
-      );
-    } catch (error) {
-      if ((error as Error)?.message?.includes('Cannot find module')) {
-        // eslint-disable-next-line no-console
-        console.error(
-          'Tried to use a class-validator schema in @novu/framework without `class-validator-jsonschema` installed. ' +
-            'Please install it by running `npm install class-validator-jsonschema`.'
-        );
-      }
-      throw error;
-    }
+    const transformedSchema = addAdditionalPropertiesFalse(
+      replaceSchemaRefs(
+        targetConstructorToSchema(schema, {
+          classValidatorMetadataStorage: getMetadataStorage(),
+          classTransformerMetadataStorage: defaultMetadataStorage,
+        }),
+        schemas
+      )
+    );
+
+    return transformedSchema;
   }
 }

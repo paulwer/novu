@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { ZodSchema, z } from 'zod';
+import { z } from 'zod';
 import { validateData, transformSchema } from './base.validator';
-import { ClassType, JsonSchema, Schema } from '../types/schema.types';
+import { Schema, ZodSchema } from '../types/schema.types';
 import { SimpleStringSchema, NestedSchema, SimpleStringAndNumberSchema } from './fixures/class-validator.fixtures';
+import { ClassValidatorSchema } from '../types/schema.types/class.schema.types';
+import { JsonSchema } from '../types/schema.types/json.schema.types';
 
 const schemas = ['zod', 'class', 'json'] as const;
 
@@ -12,7 +14,7 @@ describe('validators', () => {
       title: string;
       schemas: {
         zod: ZodSchema | null;
-        class: ClassType | null;
+        class: ClassValidatorSchema | null;
         json: JsonSchema;
       };
       payload: Record<string, unknown>;
@@ -357,7 +359,7 @@ describe('validators', () => {
       title: string;
       schemas: {
         zod: ZodSchema | null;
-        class: ClassType | null;
+        class: ClassValidatorSchema | null;
         json: JsonSchema;
       };
       result: JsonSchema;

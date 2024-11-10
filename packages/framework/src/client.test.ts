@@ -313,6 +313,8 @@ describe('Novu Client', () => {
       if (stepChat === undefined) throw new Error('stepEmail is undefined');
       expect(stepChat.type).toBe('chat');
       expect(stepChat.code).toContain(`body: "Test Body"`);
+      console.log(stepChat.providers);
+      // await new Promise((resolve) => setTimeout(resolve, 1000));
       expect(stepChat.providers[0].code).toContain(`type: "plain_text"`);
       expect(stepChat.providers[0].code).toContain(`text: "Pretty Header"`);
     });
