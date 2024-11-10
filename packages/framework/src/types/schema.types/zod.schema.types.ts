@@ -1,5 +1,8 @@
 import type { ZodType, infer as ZodInfer, input as ZodInput } from 'zod';
 
+/**
+ * A Zod schema.
+ */
 export type ZodSchema = ZodType;
 
 /**
