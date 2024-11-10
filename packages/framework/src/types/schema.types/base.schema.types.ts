@@ -1,5 +1,5 @@
-import { JsonSchema, InferJsonSchema } from './json.schema.types';
-import { ZodSchemaMinimal, InferZodSchema } from './zod.schema.types';
+import type { JsonSchema, InferJsonSchema } from './json.schema.types';
+import type { ZodSchemaMinimal, InferZodSchema } from './zod.schema.types';
 
 /**
  * A schema used to validate a JSON object.
