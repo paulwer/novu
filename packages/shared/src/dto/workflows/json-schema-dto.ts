@@ -1,8 +1,11 @@
 /**
  * Json Schema version 7.
  *
- * Copied from import(`json-schema-to-ts`).JSONSchema.
+ * Note: Copied verbatim from import(`json-schema-to-ts`).JSONSchema.
+ * This is to avoid a dependency on `json-schema-to-ts` in the shared package when
+ * Framework can't be depended on, to avoid circular dependencies.
  */
+
 export declare const $JSONSchema: unique symbol;
 export type $JSONSchema = typeof $JSONSchema;
 export type JSONSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
