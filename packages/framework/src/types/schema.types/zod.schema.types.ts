@@ -1,9 +1,6 @@
-import type { ZodType, infer as ZodInfer, input as ZodInput } from 'zod';
+import type zod from 'zod';
 
-/**
- * A Zod schema.
- */
-export type ZodSchema = ZodType;
+export type ZodSchema = zod.ZodType;
 
 /**
  * A minimal ZodSchema type.
@@ -39,7 +36,7 @@ export type InferZodSchema<T, Options extends { validated: boolean }> =
     ? // Secondly, narrow to the Zod type to provide type-safety to `zod.infer` and `zod.input`
       T extends ZodSchema
       ? Options['validated'] extends true
-        ? ZodInfer<T>
-        : ZodInput<T>
+        ? zod.infer<T>
+        : zod.input<T>
       : never
     : never;
