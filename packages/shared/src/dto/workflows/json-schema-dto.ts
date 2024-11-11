@@ -1,19 +1,33 @@
+/**
+ * The primitive types for JSON Schema.
+ */
 export type JSONSchemaTypeName = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
 
+/**
+ * All possible types for JSON Schema.
+ */
 export type JSONSchemaType = string | number | boolean | JSONSchemaObject | JSONSchemaArray | null;
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export interface JSONSchemaObject {
+/**
+ * The object type for JSON Schema.
+ */
+export type JSONSchemaObject = {
   [key: string]: JSONSchemaType;
-}
+};
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export interface JSONSchemaArray extends Array<JSONSchemaType> {}
+/**
+ * The array type for JSON Schema.
+ */
+export type JSONSchemaArray = Array<JSONSchemaType>;
 
-export type JSONSchemaVersion = string;
-
+/**
+ * The definition type for JSON Schema.
+ */
 export type JSONSchemaDefinition = JSONSchemaDto | boolean;
 
+/**
+ * Json schema version 7.
+ */
 export type JSONSchemaDto = Readonly<{
   type?: JSONSchemaTypeName | readonly JSONSchemaTypeName[] | undefined;
   enum?: unknown | undefined;
