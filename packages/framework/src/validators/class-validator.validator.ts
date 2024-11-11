@@ -100,7 +100,7 @@ export class ClassValidatorValidator implements Validator<ClassValidatorSchema> 
       (schema as ClassValidatorSchema).prototype.constructor === schema;
 
     if (canHandle) {
-      await checkDependencies(this.requiredImports, 'class-validator schema');
+      await checkDependencies(this.requiredImports, 'Class Validator schema');
     }
 
     return canHandle;
