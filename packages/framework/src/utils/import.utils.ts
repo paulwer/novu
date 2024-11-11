@@ -12,11 +12,12 @@ export const checkDependencies = async (
   usageReason: string
 ): Promise<void> => {
   const missingDependencies = new Set<string>();
-  for (const dep of dependencies) {
-    try {
-      const result = await dep.import;
+  const results = await Promise.allSettled(dependencies.map((dep) => dep.import));
 
-      const hasAllExports = dep.exports.every((exportName) => result[exportName] !== undefined);
+  results.forEach((result, index) => {
+    const dep = dependencies[index];
+    if (result.status === 'fulfilled') {
+      const hasAllExports = dep.exports.every((exportName) => result.value[exportName] !== undefined);
 
       /*
        * First way that a dependency isn't available is if the import succeeds
@@ -25,11 +26,11 @@ export const checkDependencies = async (
       if (!hasAllExports) {
         missingDependencies.add(dep.name);
       }
-    } catch (error) {
+    } else {
       // Second way that a dependency isn't available is if the import fails.
       missingDependencies.add(dep.name);
     }
-  }
+  });
 
   if (missingDependencies.size > 0) {
     throw new MissingDependencyError(usageReason, Array.from(missingDependencies));
