@@ -46,7 +46,6 @@
     "@types/node": "^20.15.0",
     "@typescript-eslint/parser": "^4.14.2",
     "apollo-boost": "0.4.9",
-    "json-schema-to-ts": "^3.0.0",
     "ts-node": "~10.9.1",
     "tsconfig-paths": "~4.1.0",
     "typescript": "5.6.2",
