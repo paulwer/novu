@@ -264,8 +264,6 @@
     "sanitize-html": "^2.13.0"
   },
   "nx": {
-    "tags": [
-      "package:public"
-    ]
+    "tags": ["package:public"]
   }
 }
