@@ -14,11 +14,10 @@ export type JSONSchemaVersion = string;
 
 export type JSONSchemaDefinition = JSONSchemaDto | boolean;
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export interface JSONSchemaDto {
-  type?: JSONSchemaTypeName | JSONSchemaTypeName[] | undefined;
-  enum?: JSONSchemaType[] | undefined;
-  const?: JSONSchemaType | undefined;
+export type JSONSchemaDto = Readonly<{
+  type?: JSONSchemaTypeName | readonly JSONSchemaTypeName[] | undefined;
+  enum?: unknown | undefined;
+  const?: unknown | undefined;
   multipleOf?: number | undefined;
   maximum?: number | undefined;
   exclusiveMaximum?: number | undefined;
@@ -28,7 +27,7 @@ export interface JSONSchemaDto {
   minLength?: number | undefined;
   format?: string | undefined;
   pattern?: string | undefined;
-  items?: JSONSchemaDefinition | JSONSchemaDefinition[] | undefined;
+  items?: JSONSchemaDefinition | readonly JSONSchemaDefinition[] | undefined;
   additionalItems?: JSONSchemaDefinition | undefined;
   maxItems?: number | undefined;
   minItems?: number | undefined;
@@ -36,40 +35,40 @@ export interface JSONSchemaDto {
   contains?: JSONSchemaDefinition | undefined;
   maxProperties?: number | undefined;
   minProperties?: number | undefined;
-  required?: string[] | undefined;
+  required?: readonly string[] | undefined;
   properties?:
-    | {
+    | Readonly<{
         [key: string]: JSONSchemaDefinition;
-      }
+      }>
     | undefined;
   patternProperties?:
-    | {
+    | Readonly<{
         [key: string]: JSONSchemaDefinition;
-      }
+      }>
     | undefined;
   additionalProperties?: JSONSchemaDefinition | undefined;
   dependencies?:
-    | {
-        [key: string]: JSONSchemaDefinition | string[];
-      }
+    | Readonly<{
+        [key: string]: JSONSchemaDefinition | readonly string[];
+      }>
     | undefined;
   propertyNames?: JSONSchemaDefinition | undefined;
   if?: JSONSchemaDefinition | undefined;
   then?: JSONSchemaDefinition | undefined;
   else?: JSONSchemaDefinition | undefined;
-  allOf?: JSONSchemaDefinition[] | undefined;
-  anyOf?: JSONSchemaDefinition[] | undefined;
-  oneOf?: JSONSchemaDefinition[] | undefined;
+  allOf?: readonly JSONSchemaDefinition[] | undefined;
+  anyOf?: readonly JSONSchemaDefinition[] | undefined;
+  oneOf?: readonly JSONSchemaDefinition[] | undefined;
   not?: JSONSchemaDefinition | undefined;
   definitions?:
-    | {
+    | Readonly<{
         [key: string]: JSONSchemaDefinition;
-      }
+      }>
     | undefined;
   title?: string | undefined;
   description?: string | undefined;
-  default?: JSONSchemaType | undefined;
+  default?: unknown | undefined;
   readOnly?: boolean | undefined;
   writeOnly?: boolean | undefined;
-  examples?: JSONSchemaType | undefined;
-}
+  examples?: readonly unknown[] | undefined;
+}>;
