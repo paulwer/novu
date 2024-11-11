@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import type { JSONSchema, StepResponseDto } from '@novu/shared';
+import type { JSONSchemaDefinition, StepResponseDto } from '@novu/shared';
 import { StepTypeEnum } from '@/utils/enums';
 import { capitalize } from '@/utils/string';
 
@@ -52,7 +52,7 @@ export const workflowSchema = z.object({
 export const buildDynamicFormSchema = ({
   to,
 }: {
-  to: JSONSchema;
+  to: JSONSchemaDefinition;
 }): z.ZodObject<{
   to: z.ZodObject<Record<string, z.ZodTypeAny>>;
   payload: z.ZodEffects<z.ZodString, any, string>;
@@ -101,7 +101,11 @@ export const buildDynamicFormSchema = ({
 
 export type TestWorkflowFormType = z.infer<ReturnType<typeof buildDynamicFormSchema>>;
 
-export const makeObjectFromSchema = ({ properties }: { properties: Readonly<Record<string, JSONSchema>> }) => {
+export const makeObjectFromSchema = ({
+  properties,
+}: {
+  properties: Readonly<Record<string, JSONSchemaDefinition>>;
+}) => {
   return Object.keys(properties).reduce((acc, key) => {
     const value = properties[key];
     if (typeof value !== 'object') {

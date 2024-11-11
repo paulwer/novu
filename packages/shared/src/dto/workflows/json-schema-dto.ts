@@ -26,6 +26,7 @@ export interface JSONSchemaDto {
   exclusiveMinimum?: number | undefined;
   maxLength?: number | undefined;
   minLength?: number | undefined;
+  format?: string | undefined;
   pattern?: string | undefined;
   items?: JSONSchemaDefinition | JSONSchemaDefinition[] | undefined;
   additionalItems?: JSONSchemaDefinition | undefined;
