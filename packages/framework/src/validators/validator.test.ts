@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { validateData, transformSchema } from './base.validator';
-import type { Schema, ZodSchema, JsonSchema } from '../types/schema.types';
+import type { Schema, ZodSchema, JsonSchema, ClassValidatorSchema } from '../types/schema.types';
 import { SimpleStringSchema, NestedSchema, SimpleStringAndNumberSchema } from './fixures/class-validator.fixtures';
-import { ClassValidatorSchema } from '../types/schema.types/class.schema.types';
 
 const schemas = ['zod', 'class', 'json'] as const;
 
