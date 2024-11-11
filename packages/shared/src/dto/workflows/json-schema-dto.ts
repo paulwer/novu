@@ -1,74 +1,67 @@
-export type JSONSchemaTypeName = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
+/**
+ * Json Schema version 7.
+ *
+ * Copied from import(`json-schema-to-ts`).JSONSchema.
+ */
+export declare const $JSONSchema: unique symbol;
+export type $JSONSchema = typeof $JSONSchema;
+export type JSONSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
+export type JSONSchema =
+  | boolean
+  | Readonly<{
+      [$JSONSchema]?: $JSONSchema;
+      $id?: string | undefined;
+      $ref?: string | undefined;
+      $schema?: string | undefined;
+      $comment?: string | undefined;
+      type?: JSONSchemaType | readonly JSONSchemaType[];
+      const?: unknown;
+      enum?: unknown;
+      multipleOf?: number | undefined;
+      maximum?: number | undefined;
+      exclusiveMaximum?: number | undefined;
+      minimum?: number | undefined;
+      exclusiveMinimum?: number | undefined;
+      maxLength?: number | undefined;
+      minLength?: number | undefined;
+      pattern?: string | undefined;
+      items?: JSONSchema | readonly JSONSchema[];
+      additionalItems?: JSONSchema;
+      contains?: JSONSchema;
+      maxItems?: number | undefined;
+      minItems?: number | undefined;
+      uniqueItems?: boolean | undefined;
+      maxProperties?: number | undefined;
+      minProperties?: number | undefined;
+      required?: readonly string[];
+      properties?: Readonly<Record<string, JSONSchema>>;
+      patternProperties?: Readonly<Record<string, JSONSchema>>;
+      additionalProperties?: JSONSchema;
+      unevaluatedProperties?: JSONSchema;
+      dependencies?: Readonly<Record<string, JSONSchema | readonly string[]>>;
+      propertyNames?: JSONSchema;
+      if?: JSONSchema;
+      then?: JSONSchema;
+      else?: JSONSchema;
+      allOf?: readonly JSONSchema[];
+      anyOf?: readonly JSONSchema[];
+      oneOf?: readonly JSONSchema[];
+      not?: JSONSchema;
+      format?: string | undefined;
+      contentMediaType?: string | undefined;
+      contentEncoding?: string | undefined;
+      definitions?: Readonly<Record<string, JSONSchema>>;
+      title?: string | undefined;
+      description?: string | undefined;
+      default?: unknown;
+      readOnly?: boolean | undefined;
+      writeOnly?: boolean | undefined;
+      examples?: readonly unknown[];
+      nullable?: boolean;
+    }>;
+export type JSONSchemaReference = JSONSchema &
+  Readonly<{
+    $id: string;
+  }>;
 
-export type JSONSchemaType = string | number | boolean | JSONSchemaObject | JSONSchemaArray | null;
-
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export interface JSONSchemaObject {
-  [key: string]: JSONSchemaType;
-}
-
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export interface JSONSchemaArray extends Array<JSONSchemaType> {}
-
-export type JSONSchemaVersion = string;
-
-export type JSONSchemaDefinition = JSONSchemaDto | boolean;
-
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export interface JSONSchemaDto {
-  type?: JSONSchemaTypeName | JSONSchemaTypeName[] | undefined;
-  enum?: JSONSchemaType[] | undefined;
-  const?: JSONSchemaType | undefined;
-  multipleOf?: number | undefined;
-  maximum?: number | undefined;
-  exclusiveMaximum?: number | undefined;
-  minimum?: number | undefined;
-  exclusiveMinimum?: number | undefined;
-  maxLength?: number | undefined;
-  minLength?: number | undefined;
-  pattern?: string | undefined;
-  items?: JSONSchemaDefinition | JSONSchemaDefinition[] | undefined;
-  additionalItems?: JSONSchemaDefinition | undefined;
-  maxItems?: number | undefined;
-  minItems?: number | undefined;
-  uniqueItems?: boolean | undefined;
-  contains?: JSONSchemaDefinition | undefined;
-  maxProperties?: number | undefined;
-  minProperties?: number | undefined;
-  required?: string[] | undefined;
-  properties?:
-    | {
-        [key: string]: JSONSchemaDefinition;
-      }
-    | undefined;
-  patternProperties?:
-    | {
-        [key: string]: JSONSchemaDefinition;
-      }
-    | undefined;
-  additionalProperties?: JSONSchemaDefinition | undefined;
-  dependencies?:
-    | {
-        [key: string]: JSONSchemaDefinition | string[];
-      }
-    | undefined;
-  propertyNames?: JSONSchemaDefinition | undefined;
-  if?: JSONSchemaDefinition | undefined;
-  then?: JSONSchemaDefinition | undefined;
-  else?: JSONSchemaDefinition | undefined;
-  allOf?: JSONSchemaDefinition[] | undefined;
-  anyOf?: JSONSchemaDefinition[] | undefined;
-  oneOf?: JSONSchemaDefinition[] | undefined;
-  not?: JSONSchemaDefinition | undefined;
-  definitions?:
-    | {
-        [key: string]: JSONSchemaDefinition;
-      }
-    | undefined;
-  title?: string | undefined;
-  description?: string | undefined;
-  default?: JSONSchemaType | undefined;
-  readOnly?: boolean | undefined;
-  writeOnly?: boolean | undefined;
-  examples?: JSONSchemaType | undefined;
-}
+export type JSONSchemaDto = Exclude<JSONSchema, boolean>;
