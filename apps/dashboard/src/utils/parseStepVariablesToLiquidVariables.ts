@@ -1,12 +1,10 @@
-import { StepDataDto } from '@novu/shared';
+import { JSONSchema } from '@novu/shared';
 
 interface LiquidVariable {
   type: 'variable';
   label: string;
   detail: string;
 }
-
-type JSONSchema = StepDataDto['variables'];
 
 /**
  * Parse JSON Schema and extract variables for Liquid autocompletion.

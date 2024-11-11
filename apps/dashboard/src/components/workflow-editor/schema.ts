@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import type { StepResponseDto, WorkflowTestDataResponseDto } from '@novu/shared';
+import type { JSONSchema, StepResponseDto } from '@novu/shared';
 import { StepTypeEnum } from '@/utils/enums';
 import { capitalize } from '@/utils/string';
 
@@ -48,8 +48,6 @@ export const workflowSchema = z.object({
     }),
   }),
 });
-
-export type JSONSchema = WorkflowTestDataResponseDto['to'];
 
 export const buildDynamicFormSchema = ({
   to,
