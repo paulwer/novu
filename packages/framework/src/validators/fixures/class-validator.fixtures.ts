@@ -1,6 +1,12 @@
 import 'reflect-metadata';
-import { IsNumber, IsString, ValidateNested } from 'class-validator';
+import { IsEnum, IsNumber, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+
+enum TestEnum {
+  A = 'A',
+  B = 'B',
+  C = 'C',
+}
 
 export class SimpleStringSchema {
   @IsString()
@@ -20,10 +26,24 @@ export class NestedSchema {
   @Type(() => NestedChildrenSchema)
   nested!: NestedChildrenSchema;
 }
+export class NestedArraySchema {
+  @IsString()
+  name!: string;
+
+  @ValidateNested({ each: true })
+  @Type(() => NestedChildrenSchema)
+  nested!: NestedChildrenSchema[];
+}
 
 export class SimpleStringAndNumberSchema {
   @IsString()
   name!: string;
   @IsNumber()
   age!: number;
+}
+
+export class SimpleTestEnum {
+  @IsString()
+  @IsEnum(TestEnum)
+  enum?: TestEnum;
 }
