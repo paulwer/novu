@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ZodSchema, z } from 'zod';
-import { IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { validateData, transformSchema } from './base.validator';
 import { ClassType, JsonSchema, Schema } from '../types/schema.types';
@@ -9,6 +9,11 @@ import 'reflect-metadata';
 const schemas = ['zod', 'class', 'json'] as const;
 
 // Definitions of class-validator schemas
+enum EnumSchema {
+  A = 'A',
+  B = 'B',
+  C = 'C',
+}
 class SimpleStringSchema {
   @IsString()
   @IsOptional()
@@ -31,6 +36,11 @@ class SimpleStringAndNumberSchema {
   name!: string;
   @IsNumber()
   age!: number;
+}
+class SimpleEnumSchema {
+  @IsString()
+  @IsEnum(EnumSchema)
+  enum?: EnumSchema;
 }
 
 describe('validators', () => {
@@ -352,6 +362,59 @@ describe('validators', () => {
           },
         },
       },
+      {
+        title: 'should successfully validate enum property',
+        schemas: {
+          zod: z.object({ enum: z.enum(['A', 'B', 'C']) }),
+          class: SimpleEnumSchema,
+          json: {
+            type: 'object',
+            properties: {
+              enum: {
+                type: 'string',
+                enum: ['A', 'B', 'C'],
+              },
+            },
+            required: ['enum'],
+          } as const,
+        },
+        payload: { enum: 'A' },
+        result: {
+          success: true,
+          data: { enum: 'A' },
+        },
+      },
+      {
+        title: 'should return errors for invalid enum property',
+        schemas: {
+          zod: z.object({ enum: z.enum(['A', 'B', 'C']) }),
+          class: SimpleEnumSchema,
+          json: {
+            type: 'object',
+            properties: {
+              enum: {
+                type: 'string',
+                enum: ['A', 'B', 'C'],
+              },
+            },
+            required: ['enum'],
+          } as const,
+        },
+        payload: { enum: 'Z' },
+        result: {
+          success: false,
+          errors: {
+            zod: [{ message: "Invalid enum value. Expected 'A' | 'B' | 'C', received 'Z'", path: '/enum' }],
+            class: [{ message: 'enum must be one of the following values: A, B, C', path: '/enum' }],
+            json: [
+              {
+                message: 'must be equal to one of the allowed values',
+                path: '/enum',
+              },
+            ],
+          },
+        },
+      },
     ];
 
     schemas.forEach((schema) => {
@@ -563,6 +626,33 @@ describe('validators', () => {
           },
           additionalProperties: false,
           required: ['elements'],
+        },
+      },
+      {
+        title: 'should transform a enum schema',
+        schemas: {
+          zod: z.object({ enum: z.enum(['A', 'B', 'C']) }),
+          class: SimpleEnumSchema, // ClassValidator has no support for `anyOf`
+          json: {
+            type: 'object',
+            properties: {
+              enum: {
+                type: 'string',
+                enum: ['A', 'B', 'C'],
+              },
+            },
+            required: ['enum'],
+          } as const,
+        },
+        result: {
+          type: 'object',
+          properties: {
+            enum: {
+              type: 'string',
+              enum: ['A', 'B', 'C'],
+            },
+          },
+          required: ['enum'],
         },
       },
     ];
