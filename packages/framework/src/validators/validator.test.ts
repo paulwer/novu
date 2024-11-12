@@ -9,7 +9,6 @@ import {
   NestedArraySchema,
   SimpleTestEnumSchema,
   UnionSchema,
-  OneOfSchema,
 } from './fixures/class-validator.fixtures';
 
 const schemas = ['zod', 'class', 'json'] as const;
@@ -189,7 +188,7 @@ describe('validators', () => {
         title: 'should successfully validate a polymorphic oneOf schema',
         schemas: {
           zod: null, // Zod has no support for `oneOf`
-          class: OneOfSchema, // ClassValidator has no support for `oneOf`
+          class: null, // ClassValidator has no support for `oneOf`
           json: {
             oneOf: [
               { type: 'object', properties: { stringType: { type: 'string' } }, required: ['stringType'] },
