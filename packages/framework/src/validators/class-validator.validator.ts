@@ -23,16 +23,24 @@ function replaceSchemaRefs(schema: any, schemas: any): JsonSchema {
 // Function to recursively add `additionalProperties: false` to the schema
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function addAdditionalPropertiesFalse(schema: any): JsonSchema {
-  if (schema && typeof schema === 'object' && schema?.type === 'object') {
-    // eslint-disable-next-line no-param-reassign
-    schema.additionalProperties = false;
-  }
+  if (schema && typeof schema === 'object') {
+    if (schema.type === 'object') {
+      // eslint-disable-next-line no-param-reassign
+      schema.additionalProperties = false;
+    }
 
-  if (schema.properties) {
-    for (const key in schema.properties) {
-      if (schema.properties.hasOwnProperty(key)) {
-        addAdditionalPropertiesFalse(schema.properties[key]);
+    // If schema has properties, recursively apply the function to each property
+    if (schema.properties) {
+      for (const key in schema.properties) {
+        if (schema.properties.hasOwnProperty(key)) {
+          addAdditionalPropertiesFalse(schema.properties[key]);
+        }
       }
+    }
+
+    // If schema has items (meaning it's an array), apply recursively to each item schema
+    if (schema.type === 'array' && schema.items) {
+      addAdditionalPropertiesFalse(schema.items);
     }
   }
 
@@ -107,7 +115,7 @@ export class ClassValidatorValidator implements Validator<ClassType> {
       const { defaultMetadataStorage } = require('class-transformer/cjs/storage');
       // eslint-disable-next-line global-require
       const { getMetadataStorage } = require('class-validator') as typeof import('class-validator');
-      // eslint-disable-next-line global-require, prettier/prettier
+
       const { targetConstructorToSchema, validationMetadatasToSchemas } =
         require('class-validator-jsonschema') as typeof import('class-validator-jsonschema');
 

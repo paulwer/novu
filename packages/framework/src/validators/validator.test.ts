@@ -31,6 +31,14 @@ class NestedSchema {
   @Type(() => NestedChildrenSchema)
   nested!: NestedChildrenSchema;
 }
+class NestedArraySchema {
+  @IsString()
+  name!: string;
+
+  @ValidateNested({ each: true })
+  @Type(() => NestedChildrenSchema)
+  nested!: NestedChildrenSchema[];
+}
 class SimpleStringAndNumberSchema {
   @IsString()
   name!: string;
@@ -147,6 +155,70 @@ describe('validators', () => {
             zod: [{ message: 'Expected number, received string', path: '/nested/age' }],
             class: [{ message: 'age must be a number conforming to the specified constraints', path: '/nested/age' }],
             json: [{ message: 'must be number', path: '/nested/age' }],
+          },
+        },
+      },
+      {
+        title: 'should validate nested array objects successfully',
+        schemas: {
+          zod: z.object({ name: z.string(), nested: z.array(z.object({ age: z.number() })) }),
+          class: NestedArraySchema,
+          json: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              nested: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    age: {
+                      type: 'number',
+                    },
+                  },
+                  required: ['age'],
+                },
+              },
+            },
+          } as const,
+        },
+        payload: { name: 'John', nested: [{ age: 30 }] },
+        result: {
+          success: true,
+          data: { name: 'John', nested: [{ age: 30 }] },
+        },
+      },
+      {
+        title: 'should return errors for invalid nested array objects',
+        schemas: {
+          zod: z.object({ name: z.string(), nested: z.array(z.object({ age: z.number() })) }),
+          class: NestedArraySchema,
+          json: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              nested: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    age: {
+                      type: 'number',
+                    },
+                  },
+                  required: ['age'],
+                },
+              },
+            },
+          } as const,
+        },
+        payload: { name: 'John', nested: [{ age: '30' }] },
+        result: {
+          success: false,
+          errors: {
+            zod: [{ message: 'Expected number, received string', path: '/nested/0/age' }],
+            class: [{ message: 'age must be a number conforming to the specified constraints', path: '/nested/0/age' }],
+            json: [{ message: 'must be number', path: '/nested/0/age' }],
           },
         },
       },
@@ -501,6 +573,55 @@ describe('validators', () => {
               properties: { age: { type: 'number' } },
               required: ['age'],
               additionalProperties: false,
+            },
+          },
+          required: ['name', 'nested'],
+          additionalProperties: false,
+        },
+      },
+      {
+        title: 'should transform a nested array object schema',
+        schemas: {
+          zod: z.object({ name: z.string(), nested: z.array(z.object({ age: z.number() })) }),
+          class: NestedArraySchema,
+          json: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              nested: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    age: {
+                      type: 'number',
+                    },
+                  },
+                  required: ['age'],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ['name', 'nested'],
+            additionalProperties: false,
+          } as const,
+        },
+        result: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            nested: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  age: {
+                    type: 'number',
+                  },
+                },
+                required: ['age'],
+                additionalProperties: false,
+              },
             },
           },
           required: ['name', 'nested'],
