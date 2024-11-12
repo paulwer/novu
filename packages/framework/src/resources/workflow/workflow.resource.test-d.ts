@@ -27,24 +27,13 @@ describe('workflow function types', () => {
   });
 
   describe('without schema', () => {
-    it('should infer an unknown record type in the step function step controls', async () => {
-      workflow('without-schema', async ({ step }) => {
-        await step.email('without-schema', async (controls) => {
-          expectTypeOf(controls).toEqualTypeOf<Record<string, unknown>>();
-
-          return {
-            subject: 'Test subject',
-            body: 'Test body',
-          };
-        });
-      });
-    });
-
-    it('should infer an unknown record type in the skip function step controls', async () => {
+    it('should infer an unknown record type in the step controls', async () => {
       workflow('without-schema', async ({ step }) => {
         await step.email(
           'without-schema',
           async (controls) => {
+            expectTypeOf(controls).toEqualTypeOf<Record<string, unknown>>();
+
             return {
               subject: 'Test subject',
               body: 'Test body',
@@ -56,22 +45,6 @@ describe('workflow function types', () => {
 
               return true;
             },
-          }
-        );
-      });
-    });
-
-    it('should infer an unknown record type in the provider function step controls', async () => {
-      workflow('without-schema', async ({ step }) => {
-        await step.email(
-          'without-schema',
-          async (controls) => {
-            return {
-              subject: 'Test subject',
-              body: 'Test body',
-            };
-          },
-          {
             providers: {
               sendgrid: async ({ controls }) => {
                 expectTypeOf(controls).toEqualTypeOf<Record<string, unknown>>();
@@ -136,7 +109,28 @@ describe('workflow function types', () => {
       additionalProperties: false,
     } as const;
 
-    it('should infer correct types in the step function step controls', async () => {
+    it('should infer an unknown record type when the provided schema is for a primitive type', () => {
+      const primitiveSchema = { type: 'string' } as const;
+      workflow('without-schema', async ({ step }) => {
+        await step.email(
+          'without-schema',
+          async (controls) => {
+            expectTypeOf(controls).toEqualTypeOf<Record<string, unknown>>();
+
+            return {
+              subject: 'Test subject',
+              body: 'Test body',
+            };
+          },
+          {
+            // @ts-expect-error - schema is for a primitive type
+            controlSchema: primitiveSchema,
+          }
+        );
+      });
+    });
+
+    it('should infer correct types in the step controls', async () => {
       workflow('json-schema', async ({ step }) => {
         await step.email(
           'json-schema',
@@ -150,56 +144,22 @@ describe('workflow function types', () => {
           },
           {
             controlSchema: jsonSchema,
-          }
-        );
-      });
+            skip: (controls) => {
+              expectTypeOf(controls).toEqualTypeOf<{ foo: string; baz?: number }>();
 
-      it('should infer correct types in the skip function step controls', async () => {
-        workflow('json-schema', async ({ step }) => {
-          await step.email(
-            'json-schema',
-            async (controls) => {
-              return {
-                subject: 'Test subject',
-                body: 'Test body',
-              };
+              return true;
             },
-            {
-              controlSchema: jsonSchema,
-              skip: (controls) => {
+            providers: {
+              sendgrid: async ({ controls }) => {
                 expectTypeOf(controls).toEqualTypeOf<{ foo: string; baz?: number }>();
 
-                return true;
+                return {
+                  ipPoolName: 'test',
+                };
               },
-            }
-          );
-        });
-      });
-
-      it('should infer correct types in the provider function step controls', async () => {
-        workflow('json-schema', async ({ step }) => {
-          await step.email(
-            'json-schema',
-            async (controls) => {
-              return {
-                subject: 'Test subject',
-                body: 'Test body',
-              };
             },
-            {
-              controlSchema: jsonSchema,
-              providers: {
-                sendgrid: async ({ controls }) => {
-                  expectTypeOf(controls).toEqualTypeOf<{ foo: string; baz?: number }>();
-
-                  return {
-                    ipPoolName: 'test',
-                  };
-                },
-              },
-            }
-          );
-        });
+          }
+        );
       });
 
       it('should infer correct types in the workflow event payload', async () => {
@@ -259,7 +219,7 @@ describe('workflow function types', () => {
         );
       });
 
-      it('should infer an unknown record type in the custom step results', async () => {
+      it('should infer the correct types in the custom step results', async () => {
         workflow('without-schema', async ({ step }) => {
           const result = await step.custom(
             'without-schema',

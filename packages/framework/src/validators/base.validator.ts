@@ -1,10 +1,10 @@
 import type {
   FromSchema,
   FromSchemaUnvalidated,
-  ClassValidatorSchema,
   Schema,
   JsonSchema,
   ZodSchema,
+  ClassValidatorSchema,
 } from '../types/schema.types';
 import type { ValidateResult } from '../types/validator.types';
 import { JsonSchemaValidator } from './json-schema.validator';
