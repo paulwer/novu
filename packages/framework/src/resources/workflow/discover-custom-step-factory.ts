@@ -6,7 +6,6 @@ import type {
   StepType,
   StepOutput,
   StepOptions,
-  FromSchema,
   Schema,
 } from '../../types';
 import { transformSchema } from '../../validators';
