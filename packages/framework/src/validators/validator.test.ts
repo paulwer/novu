@@ -3,11 +3,13 @@ import { z } from 'zod';
 import { validateData, transformSchema } from './base.validator';
 import type { Schema, ZodSchema, JsonSchema, ClassValidatorSchema } from '../types/schema.types';
 import {
-  SimpleStringSchema,
+  StringSchema,
   NestedSchema,
-  SimpleStringAndNumberSchema,
+  StringAndNumberSchema,
   NestedArraySchema,
-  SimpleTestEnum,
+  SimpleTestEnumSchema,
+  UnionSchema,
+  OneOfSchema,
 } from './fixures/class-validator.fixtures';
 
 const schemas = ['zod', 'class', 'json'] as const;
@@ -37,7 +39,7 @@ describe('validators', () => {
         title: 'should successfully validate data',
         schemas: {
           zod: z.object({ name: z.string() }),
-          class: SimpleStringSchema,
+          class: StringSchema,
           json: { type: 'object', properties: { name: { type: 'string' } } } as const,
         },
         payload: { name: 'John' },
@@ -50,7 +52,7 @@ describe('validators', () => {
         title: 'should remove additional properties and successfully validate',
         schemas: {
           zod: z.object({ name: z.string() }),
-          class: SimpleStringSchema,
+          class: StringSchema,
           json: { type: 'object', properties: { name: { type: 'string' } }, additionalProperties: false } as const,
         },
         payload: { name: 'John', age: 30 },
@@ -63,7 +65,7 @@ describe('validators', () => {
         title: 'should return errors when given invalid types',
         schemas: {
           zod: z.object({ name: z.string() }),
-          class: SimpleStringSchema,
+          class: StringSchema,
           json: { type: 'object', properties: { name: { type: 'string' } } } as const,
         },
         payload: { name: 123 },
@@ -187,7 +189,7 @@ describe('validators', () => {
         title: 'should successfully validate a polymorphic oneOf schema',
         schemas: {
           zod: null, // Zod has no support for `oneOf`
-          class: null, // ClassValidator has no support for `oneOf`
+          class: OneOfSchema, // ClassValidator has no support for `oneOf`
           json: {
             oneOf: [
               { type: 'object', properties: { stringType: { type: 'string' } }, required: ['stringType'] },
@@ -292,7 +294,7 @@ describe('validators', () => {
             z.object({ type: z.literal('numberType'), numVal: z.number() }),
             z.object({ type: z.literal('booleanType'), boolVal: z.boolean() }),
           ]),
-          class: null, // ClassValidator has no support for `anyOf`
+          class: UnionSchema,
           json: {
             anyOf: [
               {
@@ -330,7 +332,7 @@ describe('validators', () => {
             z.object({ type: z.literal('numberType'), numVal: z.number() }),
             z.object({ type: z.literal('booleanType'), boolVal: z.boolean() }),
           ]),
-          class: null, // ClassValidator has no support for `anyOf`
+          class: UnionSchema,
           json: {
             anyOf: [
               {
@@ -359,7 +361,7 @@ describe('validators', () => {
           success: false,
           errors: {
             zod: [{ message: 'Expected number, received string', path: '/numVal' }],
-            class: null, // ClassValidator has no support for `anyOf`
+            class: [{ message: 'numVal must be a number conforming to the specified constraints', path: '/numVal' }],
             /*
              * TODO: use discriminator to get the correct error message.
              *
@@ -399,7 +401,7 @@ describe('validators', () => {
         title: 'should successfully validate enum property',
         schemas: {
           zod: z.object({ enum: z.enum(['A', 'B', 'C']) }),
-          class: SimpleTestEnum,
+          class: SimpleTestEnumSchema,
           json: {
             type: 'object',
             properties: {
@@ -421,7 +423,7 @@ describe('validators', () => {
         title: 'should return errors for invalid enum property',
         schemas: {
           zod: z.object({ enum: z.enum(['A', 'B', 'C']) }),
-          class: SimpleTestEnum,
+          class: SimpleTestEnumSchema,
           json: {
             type: 'object',
             properties: {
@@ -490,7 +492,7 @@ describe('validators', () => {
         title: 'should transform a simple object schema',
         schemas: {
           zod: z.object({ name: z.string(), age: z.number() }),
-          class: SimpleStringAndNumberSchema,
+          class: StringAndNumberSchema,
           json: {
             type: 'object',
             properties: { name: { type: 'string' }, age: { type: 'number' } },
@@ -714,7 +716,7 @@ describe('validators', () => {
         title: 'should transform a enum schema',
         schemas: {
           zod: z.object({ enum: z.enum(['A', 'B', 'C']) }),
-          class: SimpleTestEnum, // ClassValidator has no support for `anyOf`
+          class: SimpleTestEnumSchema, // ClassValidator has no support for `anyOf`
           json: {
             type: 'object',
             properties: {

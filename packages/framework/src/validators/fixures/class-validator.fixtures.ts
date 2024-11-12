@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { IsEnum, IsNumber, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsNumber, IsString, ValidateIf, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 enum TestEnum {
@@ -8,7 +8,7 @@ enum TestEnum {
   C = 'C',
 }
 
-export class SimpleStringSchema {
+export class StringSchema {
   @IsString()
   name!: string;
 }
@@ -35,15 +35,32 @@ export class NestedArraySchema {
   nested!: NestedChildrenSchema[];
 }
 
-export class SimpleStringAndNumberSchema {
+export class StringAndNumberSchema {
   @IsString()
   name!: string;
   @IsNumber()
   age!: number;
 }
 
-export class SimpleTestEnum {
+export class SimpleTestEnumSchema {
   @IsString()
   @IsEnum(TestEnum)
   enum?: TestEnum;
+}
+
+export class UnionSchema {
+  @IsIn(['stringType', 'numberType', 'booleanType'])
+  type!: 'stringType' | 'numberType' | 'booleanType';
+
+  @ValidateIf((obj) => obj.type === 'stringType')
+  @IsString()
+  stringVal?: string;
+
+  @ValidateIf((obj) => obj.type === 'numberType')
+  @IsNumber()
+  numVal?: number;
+
+  @ValidateIf((obj) => obj.type === 'booleanType')
+  @IsBoolean()
+  boolVal?: boolean;
 }
