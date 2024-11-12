@@ -15,7 +15,6 @@ export type Schema = JsonSchemaMinimal | ZodSchemaMinimal | ClassValidatorSchema
  */
 type InferSchema<T extends Schema, Options extends { validated: boolean }> =
   | InferJsonSchema<T, Options>
-  | InferZodSchema<T, Options>
   | InferClassValidatorSchema<T, Options>
   | InferZodSchema<T, Options>;
 
