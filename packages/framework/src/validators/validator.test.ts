@@ -1,55 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { ZodSchema, z } from 'zod';
-import { IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { z } from 'zod';
 import { validateData, transformSchema } from './base.validator';
-import { ClassType, JsonSchema, Schema } from '../types/schema.types';
-import 'reflect-metadata';
+import type { Schema, ZodSchema, JsonSchema, ClassValidatorSchema } from '../types/schema.types';
+import {
+  SimpleStringSchema,
+  NestedSchema,
+  SimpleStringAndNumberSchema,
+  NestedArraySchema,
+  SimpleTestEnum,
+} from './fixures/class-validator.fixtures';
 
 const schemas = ['zod', 'class', 'json'] as const;
-
-// Definitions of class-validator schemas
-enum EnumSchema {
-  A = 'A',
-  B = 'B',
-  C = 'C',
-}
-class SimpleStringSchema {
-  @IsString()
-  @IsOptional()
-  name?: string;
-}
-class NestedChildrenSchema {
-  @IsNumber()
-  age!: number;
-}
-class NestedSchema {
-  @IsString()
-  name!: string;
-
-  @ValidateNested()
-  @Type(() => NestedChildrenSchema)
-  nested!: NestedChildrenSchema;
-}
-class NestedArraySchema {
-  @IsString()
-  name!: string;
-
-  @ValidateNested({ each: true })
-  @Type(() => NestedChildrenSchema)
-  nested!: NestedChildrenSchema[];
-}
-class SimpleStringAndNumberSchema {
-  @IsString()
-  name!: string;
-  @IsNumber()
-  age!: number;
-}
-class SimpleEnumSchema {
-  @IsString()
-  @IsEnum(EnumSchema)
-  enum?: EnumSchema;
-}
 
 describe('validators', () => {
   describe('validateData', () => {
@@ -57,7 +18,7 @@ describe('validators', () => {
       title: string;
       schemas: {
         zod: ZodSchema | null;
-        class: ClassType | null;
+        class: ClassValidatorSchema | null;
         json: JsonSchema;
       };
       payload: Record<string, unknown>;
@@ -398,6 +359,7 @@ describe('validators', () => {
           success: false,
           errors: {
             zod: [{ message: 'Expected number, received string', path: '/numVal' }],
+            class: null, // ClassValidator has no support for `anyOf`
             /*
              * TODO: use discriminator to get the correct error message.
              *
@@ -412,7 +374,6 @@ describe('validators', () => {
              *
              * @see https://ajv.js.org/json-schema.html#discriminator
              */
-            class: null, // ClassValidator has no support for `anyOf`
             json: [
               {
                 message: "must have required property 'stringVal'",
@@ -438,7 +399,7 @@ describe('validators', () => {
         title: 'should successfully validate enum property',
         schemas: {
           zod: z.object({ enum: z.enum(['A', 'B', 'C']) }),
-          class: SimpleEnumSchema,
+          class: SimpleTestEnum,
           json: {
             type: 'object',
             properties: {
@@ -460,7 +421,7 @@ describe('validators', () => {
         title: 'should return errors for invalid enum property',
         schemas: {
           zod: z.object({ enum: z.enum(['A', 'B', 'C']) }),
-          class: SimpleEnumSchema,
+          class: SimpleTestEnum,
           json: {
             type: 'object',
             properties: {
@@ -519,7 +480,7 @@ describe('validators', () => {
       title: string;
       schemas: {
         zod: ZodSchema | null;
-        class: ClassType | null;
+        class: ClassValidatorSchema | null;
         json: JsonSchema;
       };
       result: JsonSchema;
@@ -753,7 +714,7 @@ describe('validators', () => {
         title: 'should transform a enum schema',
         schemas: {
           zod: z.object({ enum: z.enum(['A', 'B', 'C']) }),
-          class: SimpleEnumSchema, // ClassValidator has no support for `anyOf`
+          class: SimpleTestEnum, // ClassValidator has no support for `anyOf`
           json: {
             type: 'object',
             properties: {
@@ -783,19 +744,19 @@ describe('validators', () => {
         testCases
           .filter((testCase) => testCase.schemas[schema] !== null)
           .forEach((testCase) => {
-            it(testCase.title, () => {
-              const result = transformSchema(testCase.schemas[schema] as Schema);
-              expect(result).deep.contain(testCase.result, JSON.stringify(result));
+            it(testCase.title, async () => {
+              const result = await transformSchema(testCase.schemas[schema] as Schema);
+              expect(result).deep.contain(testCase.result);
             });
           });
       });
     });
 
-    it('should throw an error for invalid schema', () => {
+    it('should throw an error for invalid schema', async () => {
       const schema = { invalidKey: 'test' } as const;
 
       // @ts-expect-error - we are testing the type guard
-      expect(() => transformSchema(schema)).toThrow('Invalid schema');
+      await expect(transformSchema(schema)).rejects.toThrow('Invalid schema');
     });
   });
 });

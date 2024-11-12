@@ -2,11 +2,11 @@ import {
   DEFAULT_WORKFLOW_PREFERENCES,
   PreferencesResponseDto,
   PreferencesTypeEnum,
+  RuntimeIssue,
   ShortIsPrefixEnum,
-  Slug,
-  slugify,
   StepResponseDto,
   StepTypeEnum,
+  WorkflowCreateAndUpdateKeys,
   WorkflowListResponseDto,
   WorkflowOriginEnum,
   WorkflowResponseDto,
@@ -15,9 +15,7 @@ import {
 } from '@novu/shared';
 import { NotificationStepEntity, NotificationTemplateEntity } from '@novu/dal';
 import { GetPreferencesResponseDto } from '@novu/application-generic';
-import { encodeBase62 } from '../../shared/helpers';
-
-const SLUG_DELIMITER = '_';
+import { buildSlug } from '../../shared/helpers/build-slug';
 
 export function toResponseWorkflowDto(
   template: NotificationTemplateEntity,
@@ -42,7 +40,8 @@ export function toResponseWorkflowDto(
     origin: computeOrigin(template),
     updatedAt: template.updatedAt || 'Missing Updated At',
     createdAt: template.createdAt || 'Missing Create At',
-    status: WorkflowStatusEnum.ACTIVE,
+    status: template.status || WorkflowStatusEnum.ACTIVE,
+    issues: template.issues as unknown as Record<WorkflowCreateAndUpdateKeys, RuntimeIssue>,
   };
 }
 
@@ -77,24 +76,17 @@ export function toWorkflowsMinifiedDtos(templates: NotificationTemplateEntity[])
   return templates.map(toMinifiedWorkflowDto);
 }
 
-function toStepResponseDto(step: NotificationStepEntity): StepResponseDto {
-  const stepName = step.name || 'Missing Name';
+function toStepResponseDto(persistedStep: NotificationStepEntity): StepResponseDto {
+  const stepName = persistedStep.name || 'Missing Name';
 
   return {
-    _id: step._templateId,
-    slug: buildSlug(stepName, ShortIsPrefixEnum.STEP, step._templateId),
+    _id: persistedStep._templateId,
+    slug: buildSlug(stepName, ShortIsPrefixEnum.STEP, persistedStep._templateId),
     name: stepName,
-    stepId: step.stepId || 'Missing Step Id',
-    type: step.template?.type || StepTypeEnum.EMAIL,
+    stepId: persistedStep.stepId || 'Missing Step Id',
+    type: persistedStep.template?.type || StepTypeEnum.EMAIL,
+    issues: persistedStep.issues,
   } satisfies StepResponseDto;
-}
-
-/**
- * Builds a slug for a step based on the step name, the short prefix and the internal ID.
- * @returns The slug for the entity, example:  slug: "workflow-name_wf_AbC1Xyz9KlmNOpQr"
- */
-function buildSlug(entityName: string, shortIsPrefix: ShortIsPrefixEnum, internalId: string): Slug {
-  return `${slugify(entityName)}${SLUG_DELIMITER}${shortIsPrefix}${encodeBase62(internalId)}`;
 }
 
 function buildStepTypeOverview(step: NotificationStepEntity): StepTypeEnum | undefined {

@@ -3,7 +3,7 @@
 import { Badge } from '@/components/primitives/badge';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/primitives/popover';
 import { inputVariants } from '@/components/primitives/variants';
-import { CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/primitives/command';
 import { cn } from '@/utils/ui';
 import { Command } from 'cmdk';
 import { forwardRef, useEffect, useState } from 'react';
@@ -27,10 +27,16 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>((props, ref) => {
   }, [value]);
 
   const addTag = (tag: string) => {
+    const newTag = tag.trim();
+    if (newTag === '') {
+      return;
+    }
+
     const newTags = [...tags, tag];
     if (new Set(newTags).size !== newTags.length) {
       return;
     }
+
     onChange(newTags);
     setInputValue('');
     setIsOpen(false);
@@ -107,9 +113,7 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>((props, ref) => {
               <CommandGroup>
                 {inputValue !== '' && (
                   <CommandItem
-                    // We can't have duplicate keys in our list so adding a prefix
-                    // here to differentiate this from a possible suggestion value
-                    value={`input-${inputValue}`}
+                    value={inputValue}
                     onSelect={() => {
                       addTag(inputValue);
                     }}
@@ -120,7 +124,9 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>((props, ref) => {
                 {suggestions.map((tag) => (
                   <CommandItem
                     key={tag}
-                    value={tag}
+                    // We can't have duplicate keys in our list so adding a suffix
+                    // here to differentiate this from the value typed
+                    value={`${tag}-suggestion`}
                     onSelect={() => {
                       addTag(tag);
                     }}

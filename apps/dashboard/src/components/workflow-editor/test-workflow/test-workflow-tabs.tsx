@@ -1,12 +1,11 @@
 import { useMemo } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { RiPlayCircleLine } from 'react-icons/ri';
 import { useForm } from 'react-hook-form';
 // eslint-disable-next-line
 // @ts-ignore
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { WorkflowTestDataResponseDto } from '@novu/shared';
-// import { TestWorkflowLogsSidebar } from './test-workflow-logs-sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../primitives/tabs';
 import { buildRoute, LEGACY_ROUTES, ROUTES } from '@/utils/routes';
 import { useFetchWorkflow } from '@/hooks';
@@ -14,12 +13,13 @@ import { Form } from '../../primitives/form/form';
 import { Button } from '../../primitives/button';
 import { useTriggerWorkflow } from '@/hooks/use-trigger-workflow';
 import { showToast } from '../../primitives/sonner-helpers';
-import { ToastClose, ToastIcon } from '../../primitives/sonner';
 import { buildDynamicFormSchema, makeObjectFromSchema, TestWorkflowFormType } from '../schema';
 import { TestWorkflowForm } from './test-workflow-form';
+import { SuccessButtonToast } from '@/components/success-button-toast';
 
 export const TestWorkflowTabs = ({ testData }: { testData: WorkflowTestDataResponseDto }) => {
-  const { environmentId = '', workflowSlug = '' } = useParams<{ environmentId: string; workflowSlug: string }>();
+  const navigate = useNavigate();
+  const { environmentSlug = '', workflowSlug = '' } = useParams<{ environmentSlug: string; workflowSlug: string }>();
   const { workflow } = useFetchWorkflow({
     workflowSlug,
   });
@@ -50,21 +50,16 @@ export const TestWorkflowTabs = ({ testData }: { testData: WorkflowTestDataRespo
       showToast({
         variant: 'lg',
         children: ({ close }) => (
-          <>
-            <ToastIcon variant="success" />
-            <div className="flex flex-col gap-2">
-              <span className="font-medium">Test workflow triggered successfully</span>
-              <span className="text-foreground-600">{`Test workflow ${workflowSlug} was triggered successfully`}</span>
-              <Link
-                to={`${LEGACY_ROUTES.ACTIVITY_FEED}?transactionId=${transactionId}`}
-                reloadDocument
-                className="text-foreground-950 flex items-center gap-1 text-sm font-medium"
-              >
-                View activity feed
-              </Link>
-            </div>
-            <ToastClose onClick={close} />
-          </>
+          <SuccessButtonToast
+            title="Test workflow triggered successfully"
+            description={`Test workflow ${workflowSlug} was triggered successfully`}
+            actionLabel="View activity feed"
+            onAction={() => {
+              close();
+              navigate(buildRoute(LEGACY_ROUTES.ACTIVITY_FEED, { transactionId }));
+            }}
+            onClose={close}
+          />
         ),
         options: {
           position: 'bottom-right',
@@ -79,12 +74,12 @@ export const TestWorkflowTabs = ({ testData }: { testData: WorkflowTestDataRespo
     <div className="h-full w-full">
       <Form {...form}>
         <form onSubmit={handleSubmit(onSubmit)} className="roun flex h-full flex-1 flex-nowrap">
-          <Tabs defaultValue="workflow" className="-mt-[1px] flex h-full flex-1 flex-col" value="trigger">
+          <Tabs defaultValue="workflow" className="-mt-[1px] flex flex-1 flex-col" value="trigger">
             <TabsList variant="regular">
               <TabsTrigger value="workflow" asChild variant="regular">
                 <Link
                   to={buildRoute(ROUTES.EDIT_WORKFLOW, {
-                    environmentId,
+                    environmentSlug,
                     workflowSlug,
                   })}
                 >
@@ -94,7 +89,7 @@ export const TestWorkflowTabs = ({ testData }: { testData: WorkflowTestDataRespo
               <TabsTrigger value="trigger" asChild variant="regular">
                 <Link
                   to={buildRoute(ROUTES.TEST_WORKFLOW, {
-                    environmentId,
+                    environmentSlug,
                     workflowSlug,
                   })}
                 >
@@ -108,7 +103,7 @@ export const TestWorkflowTabs = ({ testData }: { testData: WorkflowTestDataRespo
                 </Button>
               </div>
             </TabsList>
-            <TabsContent value="trigger" className="mt-0 h-full w-full" variant="regular">
+            <TabsContent value="trigger" className="mt-0 flex w-full flex-1 flex-col overflow-hidden" variant="regular">
               <TestWorkflowForm workflow={workflow} />
             </TabsContent>
           </Tabs>

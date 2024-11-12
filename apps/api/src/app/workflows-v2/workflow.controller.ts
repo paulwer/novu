@@ -28,7 +28,7 @@ import {
   WorkflowTestDataResponseDto,
   SyncWorkflowDto,
 } from '@novu/shared';
-import { ExternalApiAccessible, UserAuthGuard, UserSession } from '@novu/application-generic';
+import { DeleteWorkflowCommand, DeleteWorkflowUseCase, UserAuthGuard, UserSession } from '@novu/application-generic';
 import { ApiCommonResponses } from '../shared/framework/response.decorator';
 import { UserAuthentication } from '../shared/framework/swagger/api.key.security';
 import { GetWorkflowCommand } from './usecases/get-workflow/get-workflow.command';
@@ -37,8 +37,6 @@ import { UpsertWorkflowCommand } from './usecases/upsert-workflow/upsert-workflo
 import { GetWorkflowUseCase } from './usecases/get-workflow/get-workflow.usecase';
 import { ListWorkflowsUseCase } from './usecases/list-workflows/list-workflow.usecase';
 import { ListWorkflowsCommand } from './usecases/list-workflows/list-workflows.command';
-import { DeleteWorkflowUseCase } from './usecases/delete-workflow/delete-workflow.usecase';
-import { DeleteWorkflowCommand } from './usecases/delete-workflow/delete-workflow.command';
 import { SyncToEnvironmentUseCase } from './usecases/sync-to-environment/sync-to-environment.usecase';
 import { SyncToEnvironmentCommand } from './usecases/sync-to-environment/sync-to-environment.command';
 import { GeneratePreviewUsecase } from './usecases/generate-preview/generate-preview.usecase';
@@ -138,7 +136,12 @@ export class WorkflowController {
     @Param('workflowId', ParseSlugIdPipe) workflowId: IdentifierOrInternalId
   ) {
     await this.deleteWorkflowUsecase.execute(
-      DeleteWorkflowCommand.create({ identifierOrInternalId: workflowId, user })
+      DeleteWorkflowCommand.create({
+        identifierOrInternalId: workflowId,
+        environmentId: user.environmentId,
+        organizationId: user.organizationId,
+        userId: user._id,
+      })
     );
   }
 
@@ -165,7 +168,7 @@ export class WorkflowController {
   async generatePreview(
     @UserSession(ParseSlugEnvironmentIdPipe) user: UserSessionData,
     @Param('workflowId', ParseSlugIdPipe) workflowId: string,
-    @Param('stepId') stepId: string,
+    @Param('stepId', ParseSlugIdPipe) stepId: string,
     @Body() generatePreviewRequestDto: GeneratePreviewRequestDto
   ): Promise<GeneratePreviewResponseDto> {
     return await this.generatePreviewUseCase.execute(
@@ -174,14 +177,17 @@ export class WorkflowController {
   }
 
   @Get('/:workflowId/steps/:stepId')
-  @ExternalApiAccessible()
+  @UseGuards(UserAuthGuard)
   async getWorkflowStepData(
     @UserSession(ParseSlugEnvironmentIdPipe) user: UserSessionData,
     @Param('workflowId', ParseSlugIdPipe) workflowId: IdentifierOrInternalId,
     @Param('stepId', ParseSlugIdPipe) stepId: IdentifierOrInternalId
   ): Promise<StepDataDto> {
-    return await this.getStepData.execute(GetStepDataCommand.create({ user, workflowId, stepId }));
+    return await this.getStepData.execute(
+      GetStepDataCommand.create({ user, identifierOrInternalId: workflowId, stepId })
+    );
   }
+
   @Get('/:workflowId/test-data')
   @UseGuards(UserAuthGuard)
   async getWorkflowTestData(
