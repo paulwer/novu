@@ -40,6 +40,7 @@ export class GetSubscriberPreference {
       {
         organizationId: command.organizationId,
         environmentId: command.environmentId,
+        tags: command.tags,
       },
     );
 
@@ -62,6 +63,7 @@ export class GetSubscriberPreference {
             environmentId: command.environmentId,
             template,
             subscriber,
+            includeInactiveChannels: command.includeInactiveChannels,
           }),
         ),
       ),
