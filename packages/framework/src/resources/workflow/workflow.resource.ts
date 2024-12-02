@@ -46,7 +46,7 @@ export function workflow<
         throw new WorkflowPayloadInvalidError(workflowId, validationResult.errors);
       }
       // Coerce the validated data to handle unknown matching to SchemaError
-      validatedData = validationResult.data as unknown as T_PayloadValidated;
+      validatedData = validationResult.data as Record<string, unknown> as T_PayloadValidated;
     } else {
       // This type coercion provides support to trigger Workflows without a payload schema
       validatedData = event.payload as unknown as T_PayloadValidated;
