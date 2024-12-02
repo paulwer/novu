@@ -36,9 +36,13 @@ export type ClassPropsInfer<T extends ClassValidatorSchema> =
  * ```
  */
 export type InferClassValidatorSchema<T, Options extends { validated: boolean }> = T extends ClassValidatorSchema
-  ? Options['validated'] extends true
-    ? ClassPropsInfer<T>
-    : // ClassSchema doesn't support default properties, so the resulting type
-      // will not have default properties set to optional.
-      ClassPropsInfer<T>
+  ? keyof T extends never
+    ? // Ensure that a generic schema produces never
+      never
+    : // Non-generic schema
+      Options['validated'] extends true
+      ? ClassPropsInfer<T>
+      : // ClassSchema doesn't support default properties, so the resulting type
+        // will not have default properties set to optional.
+        ClassPropsInfer<T>
   : never;
