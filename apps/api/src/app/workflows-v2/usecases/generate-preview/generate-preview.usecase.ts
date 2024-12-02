@@ -1,75 +1,134 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import _ from 'lodash';
 import {
   ChannelTypeEnum,
-  GeneratePreviewRequestDto,
   GeneratePreviewResponseDto,
   JobStatusEnum,
   PreviewPayload,
   StepDataDto,
-  UserSessionData,
+  WorkflowOriginEnum,
 } from '@novu/shared';
+import {
+  GetWorkflowByIdsCommand,
+  GetWorkflowByIdsUseCase,
+  WorkflowInternalResponseDto,
+  Instrument,
+  InstrumentUsecase,
+} from '@novu/application-generic';
 import { PreviewStep, PreviewStepCommand } from '../../../bridge/usecases/preview-step';
 import { FrameworkPreviousStepsOutputState } from '../../../bridge/usecases/preview-step/preview-step.command';
-import { StepMissingControlsException } from '../../exceptions/step-not-found-exception';
-import { PrepareAndValidateContentUsecase, ValidatedContentResponse } from '../validate-content';
 import { BuildStepDataUsecase } from '../build-step-data';
 import { GeneratePreviewCommand } from './generate-preview.command';
+import { extractTemplateVars } from '../../util/template-variables/extract-template-variables';
+import { pathsToObject } from '../../util/path-to-object';
+import { createMockPayloadFromSchema, flattenObjectValues } from '../../util/utils';
+import { PrepareAndValidateContentUsecase } from '../validate-content/prepare-and-validate-content/prepare-and-validate-content.usecase';
 
 @Injectable()
 export class GeneratePreviewUsecase {
   constructor(
     private legacyPreviewStepUseCase: PreviewStep,
-    private prepareAndValidateContentUsecase: PrepareAndValidateContentUsecase,
-    private buildStepDataUsecase: BuildStepDataUsecase
+    private buildStepDataUsecase: BuildStepDataUsecase,
+    private getWorkflowByIdsUseCase: GetWorkflowByIdsUseCase,
+    private prepareAndValidateContentUsecase: PrepareAndValidateContentUsecase
   ) {}
 
+  @InstrumentUsecase()
   async execute(command: GeneratePreviewCommand): Promise<GeneratePreviewResponseDto> {
-    const dto = command.generatePreviewRequestDto;
+    const { previewPayload: commandVariablesExample, controlValues: commandControlValues } =
+      command.generatePreviewRequestDto;
     const stepData = await this.getStepData(command);
+    const workflow = await this.findWorkflow(command);
+    const preparedAndValidatedContent = await this.prepareAndValidateContentUsecase.execute({
+      user: command.user,
+      previewPayloadFromDto: commandVariablesExample,
+      controlValues: commandControlValues || stepData.controls.values || {},
+      controlDataSchema: stepData.controls.dataSchema || {},
+      variableSchema: stepData.variables,
+    });
+    const variablesExample = this.buildVariablesExample(
+      workflow,
+      preparedAndValidatedContent.finalPayload,
+      commandVariablesExample
+    );
 
-    const validatedContent: ValidatedContentResponse = await this.getValidatedContent(dto, stepData, command.user);
     const executeOutput = await this.executePreviewUsecase(
       command,
       stepData,
-      validatedContent.finalPayload,
-      validatedContent.finalControlValues
+      variablesExample,
+      preparedAndValidatedContent.finalControlValues
     );
 
     return {
-      issues: validatedContent.issues,
       result: {
         preview: executeOutput.outputs as any,
         type: stepData.type as unknown as ChannelTypeEnum,
       },
-      previewPayloadExample: validatedContent.finalPayload,
+      previewPayloadExample: variablesExample,
     };
   }
 
-  private async getValidatedContent(dto: GeneratePreviewRequestDto, stepData: StepDataDto, user: UserSessionData) {
-    if (!stepData.controls?.dataSchema) {
-      throw new StepMissingControlsException(stepData.stepId, stepData);
+  @Instrument()
+  private buildVariablesExample(
+    workflow: WorkflowInternalResponseDto,
+    finalPayload?: PreviewPayload,
+    commandVariablesExample?: PreviewPayload | undefined
+  ) {
+    if (workflow.origin !== WorkflowOriginEnum.EXTERNAL) {
+      return finalPayload;
     }
 
-    return await this.prepareAndValidateContentUsecase.execute({
-      stepType: stepData.type,
-      controlValues: dto.controlValues || stepData.controls.values,
-      controlDataSchema: stepData.controls.dataSchema,
-      variableSchema: stepData.variables,
-      previewPayloadFromDto: dto.previewPayload,
-      user,
-    });
+    const examplePayloadSchema = createMockPayloadFromSchema(workflow.payloadSchema);
+
+    if (!examplePayloadSchema || Object.keys(examplePayloadSchema).length === 0) {
+      return finalPayload;
+    }
+
+    return _.merge(
+      finalPayload as Record<string, unknown>,
+      { payload: examplePayloadSchema },
+      commandVariablesExample || {}
+    );
   }
 
+  @Instrument()
+  private generateVariablesExample(stepData: StepDataDto, commandControlValues?: Record<string, unknown>) {
+    const controlValues = flattenObjectValues(commandControlValues || stepData.controls.values).join(' ');
+    const templateVars = extractTemplateVars(controlValues);
+    const variablesExample = pathsToObject(templateVars, {
+      valuePrefix: '{{',
+      valueSuffix: '}}',
+    });
+
+    return variablesExample;
+  }
+
+  @Instrument()
+  private async findWorkflow(command: GeneratePreviewCommand) {
+    return await this.getWorkflowByIdsUseCase.execute(
+      GetWorkflowByIdsCommand.create({
+        identifierOrInternalId: command.identifierOrInternalId,
+        environmentId: command.user.environmentId,
+        organizationId: command.user.organizationId,
+        userId: command.user._id,
+      })
+    );
+  }
+
+  @Instrument()
   private async getStepData(command: GeneratePreviewCommand) {
     return await this.buildStepDataUsecase.execute({
-      identifierOrInternalId: command.workflowId,
+      identifierOrInternalId: command.identifierOrInternalId,
       stepId: command.stepDatabaseId,
       user: command.user,
     });
   }
+
   private isFrameworkError(obj: any): obj is FrameworkError {
     return typeof obj === 'object' && obj.status === '400' && obj.name === 'BridgeRequestError';
   }
+
+  @Instrument()
   private async executePreviewUsecase(
     command: GeneratePreviewCommand,
     stepData: StepDataDto,
@@ -116,6 +175,7 @@ function buildState(steps: Record<string, unknown> | undefined): FrameworkPrevio
 
   return outputArray;
 }
+
 export class GeneratePreviewError extends InternalServerErrorException {
   constructor(error: FrameworkError) {
     super({
