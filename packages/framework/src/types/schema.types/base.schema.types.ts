@@ -39,7 +39,7 @@ type InferSchema<T extends Schema, Options extends { validated: boolean }> =
         U
       : // The schema describes a non-record type, return an error message.
         {
-          SchemaError: `Schema must describe an object data structure. Got data type: '${Stringify<U>}'`;
+          SchemaError: `Schema must describe an object data structure. Received data type: '${Stringify<U>}'`;
         }
   : never;
 

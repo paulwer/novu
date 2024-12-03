@@ -116,7 +116,7 @@ describe('workflow function types', () => {
           'without-schema',
           async (controls) => {
             expectTypeOf(controls).toEqualTypeOf<{
-              SchemaError: "Schema must describe an object data structure. Got data type: 'string'";
+              SchemaError: "Schema must describe an object data structure. Received data type: 'string'";
             }>();
 
             return {
@@ -138,7 +138,7 @@ describe('workflow function types', () => {
           'without-schema',
           async (controls) => {
             expectTypeOf(controls).toEqualTypeOf<{
-              SchemaError: `Schema must describe an object data structure. Got data type: 'string[]'`;
+              SchemaError: `Schema must describe an object data structure. Received data type: 'string[]'`;
             }>();
 
             return {

@@ -28,7 +28,7 @@ describe('FromSchema', () => {
     type Test = FromSchema<typeof primitiveSchema>;
 
     expectTypeOf<Test>().toEqualTypeOf<{
-      SchemaError: `Schema must describe an object data structure. Got data type: 'string'`;
+      SchemaError: `Schema must describe an object data structure. Received data type: 'string'`;
     }>();
   });
 
@@ -37,7 +37,7 @@ describe('FromSchema', () => {
     type Test = FromSchema<typeof primitiveSchema>;
 
     expectTypeOf<Test>().toEqualTypeOf<{
-      SchemaError: `Schema must describe an object data structure. Got data type: 'string[]'`;
+      SchemaError: `Schema must describe an object data structure. Received data type: 'string[]'`;
     }>();
   });
 
@@ -49,7 +49,7 @@ describe('FromSchema', () => {
     type Test = FromSchema<typeof primitiveSchema>;
 
     expectTypeOf<Test>().toEqualTypeOf<{
-      SchemaError: `Schema must describe an object data structure. Got data type: '{ [x: string]: unknown; }[]'`;
+      SchemaError: `Schema must describe an object data structure. Received data type: '{ [x: string]: unknown; }[]'`;
     }>();
   });
 
@@ -61,7 +61,7 @@ describe('FromSchema', () => {
     type Test = FromSchema<typeof primitiveSchema>;
 
     expectTypeOf<Test>().toEqualTypeOf<{
-      SchemaError: `Schema must describe an object data structure. Got data type: 'unknown[]'`;
+      SchemaError: `Schema must describe an object data structure. Received data type: 'unknown[]'`;
     }>();
   });
 
