@@ -86,7 +86,8 @@ export class ClassValidatorValidator implements Validator<ClassValidatorSchema> 
     {
       name: 'class-transformer',
       // @ts-expect-error - class-transformer doesn't export `defaultMetadataStorage` from the root module
-      import: import('class-transformer/cjs/storage'),
+      // eslint-disable-next-line import/extensions
+      import: import('class-transformer/cjs/storage.js'),
       exports: ['defaultMetadataStorage'],
     },
     {
@@ -147,7 +148,8 @@ export class ClassValidatorValidator implements Validator<ClassValidatorSchema> 
      * @see https://github.com/typestack/class-transformer/issues/563#issuecomment-803262394
      */
     // @ts-expect-error - class-transformer doesn't export `defaultMetadataStorage` from the root module
-    const { defaultMetadataStorage } = await import('class-transformer/cjs/storage');
+    // eslint-disable-next-line import/extensions
+    const { defaultMetadataStorage } = await import('class-transformer/cjs/storage.js');
     const { getMetadataStorage } = await import('class-validator');
     const { validationMetadatasToSchemas, targetConstructorToSchema } = await import('class-validator-jsonschema');
 
