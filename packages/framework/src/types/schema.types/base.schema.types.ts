@@ -23,7 +23,7 @@ type InferSchema<T extends Schema, Options extends { validated: boolean }> =
      * Use a distributive conditional type to detect if all inferred types are `never`.
      * When all inferred types are `never`, return an unknown record.
      *
-     * Each schema inferrence must return `never` type when:
+     * Each schema inference must return `never` type when:
      * - The schema is generic (i.e. not a concrete schema type)
      * - The schema is not supported (i.e. tried to specify `string` as the schema type)
      * - The schema is undefined
@@ -33,7 +33,7 @@ type InferSchema<T extends Schema, Options extends { validated: boolean }> =
     [U] extends [never]
     ? // When all inferred types are `never`, return an unknown record.
       Record<string, unknown>
-    : // The type inferrence did not return `never`. Ensure the inferred type is a record type, as only objects are supported.
+    : // The type inference did not return `never`. Ensure the inferred type is a record type, as only objects are supported.
       U extends Record<string, unknown>
       ? // Got a record type, return it.
         U
