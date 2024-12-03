@@ -191,6 +191,23 @@ export type Stringify<T> = T extends string
  */
 type KnownTypes = string | number | boolean | bigint | symbol | undefined | null | Array<unknown> | Obj;
 
+/**
+ * Check if T is a dictionary type.
+ *
+ * @example
+ * ```ts
+ * type Test1 = IsDictionary<Record<string, string>>; // true
+ * type Test2 = IsDictionary<Record<string, unknown>>; // true
+ * type Test3 = IsDictionary<{ [x: string]: string }>; // true
+ * type Test4 = IsDictionary<{ [x: string]: unknown }>; // true
+ * type Test5 = IsDictionary<{ foo: string }>; // false
+ * ```
+ */
+type IsDictionary<T> = string extends keyof T ? true : false;
+
+/**
+ * The key used when the key is for a dictionary type.
+ */
 type UnknownKey = '[x: string]';
 
 /**
@@ -206,24 +223,25 @@ type DeepStringifyObject<T extends Obj> =
           // If U is a string, construct the string representation of the key-value pair
           U extends keyof T & string
             ? `${
-                // If the value is a known type, use the key directly. Otherwise, use a "[key: string]" fallback. Never is handled separately because it is omitted in a union of known types
-                T[U] extends KnownTypes ? (T[U] extends never ? UnknownKey : U) : UnknownKey
+                // Build the key. If T is a dictionary, use "[key: string]" as the key. Otherwise, use the key directly.
+                IsDictionary<T> extends true ? UnknownKey : U
               }${
-                // Check if the value extends undefined
+                // Build the optional "?" indicator. Check if the value extends undefined
                 undefined extends T[U]
                   ? // Check if the value extends a known type
                     T[U] extends KnownTypes
                     ? // If the value extends a known type, add a "?" to the end of the key
                       '?'
-                    : // Otherwise, the value is not a known type, so we can't add a "?"
+                    : // Otherwise, the value is not a known type (i.e. `unknown`), so we don't add a "?"
                       ''
                   : // The value didn't extend undefined, so no "?" is needed
                     ''
               }: ${
-                // If the value is `never`, return `never`
+                // Build the value.
                 T[U] extends never
-                  ? 'never'
-                  : // Stringify the value, excluding undefined if necessary
+                  ? // If the value is `never`, return `never`
+                    'never'
+                  : // Otherwise, stringify the value, excluding undefined if necessary
                     Stringify<
                       // Check if the value is optional
                       Exclude<T[U], undefined> extends never
