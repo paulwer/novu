@@ -9,11 +9,13 @@ import { useForm, Controller } from 'react-hook-form';
 import { updateClerkOrgMetadata } from '../../api/organization';
 import { hubspotCookie } from '../../utils/cookies';
 import { identifyUser } from '../../api/telemetry';
-import { useTelemetry } from '../../hooks';
+import { useTelemetry } from '../../hooks/use-telemetry';
 import { TelemetryEvent } from '../../utils/telemetry';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../utils/routes';
 import { useMutation } from '@tanstack/react-query';
+import { useOrganization, useUser } from '@clerk/clerk-react';
+import { useEnvironment, useFetchEnvironments } from '../../context/environment/hooks';
 
 interface QuestionnaireFormData {
   jobTitle: JobTitleEnum;
@@ -31,9 +33,12 @@ interface SubmitQuestionnaireData {
 }
 
 export function QuestionnaireForm() {
+  const { organization } = useOrganization();
+  useFetchEnvironments({ organizationId: organization?.id });
+
   const { control, watch, handleSubmit } = useForm<QuestionnaireFormData>();
   const submitQuestionnaireMutation = useSubmitQuestionnaire();
-
+  const { user } = useUser();
   const selectedJobTitle = watch('jobTitle');
   const selectedOrgType = watch('organizationType');
   const companySize = watch('companySize');
@@ -58,6 +63,15 @@ export function QuestionnaireForm() {
       pageName: 'Create Organization Form',
       hubspotContext: hubspotContext || '',
     });
+
+    if (!user?.unsafeMetadata?.newDashboardOptInStatus) {
+      await user?.update({
+        unsafeMetadata: {
+          newDashboardOptInStatus: 'opted_in',
+        },
+      });
+      await user?.reload();
+    }
   };
 
   return (
@@ -229,13 +243,17 @@ export function QuestionnaireForm() {
 function useSubmitQuestionnaire() {
   const track = useTelemetry();
   const navigate = useNavigate();
+  const { currentEnvironment } = useEnvironment();
 
   return useMutation({
     mutationFn: async (data: SubmitQuestionnaireData) => {
       await updateClerkOrgMetadata({
-        companySize: data.companySize,
-        jobTitle: data.jobTitle,
-        organizationType: data.organizationType,
+        environment: currentEnvironment!,
+        data: {
+          companySize: data.companySize,
+          jobTitle: data.jobTitle,
+          organizationType: data.organizationType,
+        },
       });
 
       await identifyUser({

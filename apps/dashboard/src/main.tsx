@@ -11,7 +11,9 @@ import {
   OrganizationListPage,
   QuestionnairePage,
   UsecaseSelectPage,
+  ApiKeysPage,
   WelcomePage,
+  SettingsPage,
 } from '@/pages';
 import './index.css';
 import { ROUTES } from './utils/routes';
@@ -26,6 +28,7 @@ import { EditStepTemplate } from '@/components/workflow-editor/steps/edit-step-t
 import { ConfigureWorkflow } from '@/components/workflow-editor/configure-workflow';
 import { EditStep } from '@/components/workflow-editor/steps/edit-step';
 import { InboxEmbedSuccessPage } from './pages/inbox-embed-success-page';
+import { ChannelPreferences } from './components/workflow-editor/channel-preferences';
 
 initializeSentry();
 overrideZodErrorMap();
@@ -50,16 +53,16 @@ const router = createBrowserRouter([
             path: ROUTES.SIGNUP_ORGANIZATION_LIST,
             element: <OrganizationListPage />,
           },
-          {
-            path: ROUTES.SIGNUP_QUESTIONNAIRE,
-            element: <QuestionnairePage />,
-          },
         ],
       },
       {
         path: '/onboarding',
         element: <OnboardingParentRoute />,
         children: [
+          {
+            path: ROUTES.SIGNUP_QUESTIONNAIRE,
+            element: <QuestionnairePage />,
+          },
           {
             path: ROUTES.USECASE_SELECT,
             element: <UsecaseSelectPage />,
@@ -94,6 +97,10 @@ const router = createBrowserRouter([
                 element: <WorkflowsPage />,
               },
               {
+                path: ROUTES.API_KEYS,
+                element: <ApiKeysPage />,
+              },
+              {
                 path: ROUTES.EDIT_WORKFLOW,
                 element: <EditWorkflowPage />,
                 children: [
@@ -109,6 +116,10 @@ const router = createBrowserRouter([
                     element: <EditStepTemplate />,
                     path: ROUTES.EDIT_STEP_TEMPLATE,
                   },
+                  {
+                    element: <ChannelPreferences />,
+                    path: ROUTES.EDIT_WORKFLOW_PREFERENCES,
+                  },
                 ],
               },
               {
@@ -120,6 +131,22 @@ const router = createBrowserRouter([
                 element: <CatchAllRoute />,
               },
             ],
+          },
+          {
+            path: ROUTES.SETTINGS,
+            element: <SettingsPage />,
+          },
+          {
+            path: ROUTES.SETTINGS_ACCOUNT,
+            element: <SettingsPage />,
+          },
+          {
+            path: ROUTES.SETTINGS_ORGANIZATION,
+            element: <SettingsPage />,
+          },
+          {
+            path: ROUTES.SETTINGS_TEAM,
+            element: <SettingsPage />,
           },
           {
             path: '*',
