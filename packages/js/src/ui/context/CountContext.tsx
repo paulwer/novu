@@ -1,9 +1,12 @@
 import { Accessor, createContext, createMemo, createSignal, onMount, ParentProps, useContext } from 'solid-js';
 import { NotificationFilter, Notification } from '../../types';
+import { getTagsFromTab } from '../helpers';
 import { useNovuEvent } from '../helpers/useNovuEvent';
 import { useWebSocketEvent } from '../helpers/useWebSocketEvent';
 import { useInboxContext } from './InboxContext';
 import { useNovu } from './NovuContext';
+
+const MIN_AMOUNT_OF_NOTIFICATIONS = 1;
 
 type CountContextValue = {
   totalUnreadCount: Accessor<number>;
@@ -16,7 +19,7 @@ const CountContext = createContext<CountContextValue>(undefined);
 
 export const CountProvider = (props: ParentProps) => {
   const novu = useNovu();
-  const { tabs, filter, limit } = useInboxContext();
+  const { isOpened, tabs, filter, limit } = useInboxContext();
   const [totalUnreadCount, setTotalUnreadCount] = createSignal(0);
   const [unreadCounts, setUnreadCounts] = createSignal(new Map<string, number>());
   const [newNotificationCounts, setNewNotificationCounts] = createSignal(new Map<string, number>());
@@ -25,7 +28,7 @@ export const CountProvider = (props: ParentProps) => {
     if (tabs().length === 0) {
       return;
     }
-    const filters = tabs().map((tab) => ({ tags: tab.value, read: false, archived: false }));
+    const filters = tabs().map((tab) => ({ tags: getTagsFromTab(tab), read: false, archived: false }));
     const { data } = await novu.notifications.count({ filters });
     if (!data) {
       return;
@@ -68,9 +71,14 @@ export const CountProvider = (props: ParentProps) => {
     const notificationsCache = novu.notifications.cache;
     const limitValue = limit();
     const tabFilter = { ...filter(), tags, offset: 0, limit: limitValue };
+    const hasEmptyCache = !notificationsCache.has(tabFilter);
+    if (!isOpened() && hasEmptyCache) {
+      return;
+    }
+
     const cachedData = notificationsCache.getAll(tabFilter) || { hasMore: false, filter: tabFilter, notifications: [] };
-    const hasLessThenTenItems = (cachedData?.notifications.length || 0) < limitValue;
-    if (hasLessThenTenItems) {
+    const hasLessThenMinAmount = (cachedData?.notifications.length || 0) < MIN_AMOUNT_OF_NOTIFICATIONS;
+    if (hasLessThenMinAmount) {
       notificationsCache.update(tabFilter, {
         ...cachedData,
         notifications: [notification, ...cachedData.notifications],
@@ -99,7 +107,7 @@ export const CountProvider = (props: ParentProps) => {
       if (allTabs.length > 0) {
         for (let i = 0; i < allTabs.length; i += 1) {
           const tab = allTabs[i];
-          const tags = tab.value;
+          const tags = getTagsFromTab(tab);
           const allNotifications = tags.length === 0;
           const includesAtLeastOneTag = tags.some((tag) => notification.tags?.includes(tag));
           if (!allNotifications && !includesAtLeastOneTag) {

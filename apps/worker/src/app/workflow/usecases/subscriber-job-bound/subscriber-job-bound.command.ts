@@ -9,7 +9,7 @@ import {
 } from '@novu/shared';
 import { SubscriberEntity } from '@novu/dal';
 import { EnvironmentWithUserCommand } from '@novu/application-generic';
-import { DiscoverWorkflowOutput } from '@novu/framework';
+import { DiscoverWorkflowOutput } from '@novu/framework/internal';
 
 export class SubscriberJobBoundCommand extends EnvironmentWithUserCommand {
   @IsString()
@@ -51,4 +51,8 @@ export class SubscriberJobBoundCommand extends EnvironmentWithUserCommand {
   bridge?: { url: string; workflow: DiscoverWorkflowOutput };
 
   controls?: ControlsDto;
+
+  @IsDefined()
+  @IsString()
+  environmentName: string;
 }

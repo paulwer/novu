@@ -1,5 +1,6 @@
 import type { Notification } from '../notifications';
-import type { NovuOptions } from '../types';
+import { Novu } from '../novu';
+import type { NotificationFilter, NovuOptions } from '../types';
 import { appearanceKeys } from './config';
 import { Localization } from './context/LocalizationContext';
 
@@ -8,8 +9,16 @@ export type NotificationActionClickHandler = (notification: Notification) => voi
 
 export type NotificationRenderer = (el: HTMLDivElement, notification: Notification) => () => void;
 export type BellRenderer = (el: HTMLDivElement, unreadCount: number) => () => void;
+export type RouterPush = (path: string) => void;
 
-export type Tab = { label: string; value: Array<string> };
+export type Tab = {
+  label: string;
+  /**
+   * @deprecated Use `filter` instead
+   */
+  value?: Array<string>;
+  filter?: Pick<NotificationFilter, 'tags'>;
+};
 
 export type CSSProperties = {
   [key: string]: string | number;
@@ -27,6 +36,7 @@ export type Variables = {
   colorCounter?: string;
   colorCounterForeground?: string;
   colorNeutral?: string;
+  colorShadow?: string;
   fontSize?: string;
   borderRadius?: string;
 };
@@ -37,6 +47,7 @@ export type Elements = Partial<Record<AppearanceKey, ElementStyles>>;
 export type Theme = {
   variables?: Variables;
   elements?: Elements;
+  animations?: boolean;
 };
 export type Appearance = Theme & { baseTheme?: Theme | Theme[] };
 
@@ -45,6 +56,9 @@ export type BaseNovuProviderProps = {
   localization?: Localization;
   options: NovuOptions;
   tabs?: Array<Tab>;
+  preferencesFilter?: PreferencesFilter;
+  routerPush?: RouterPush;
+  novu?: Novu;
 };
 
 export type NovuProviderProps = BaseNovuProviderProps & {
@@ -57,5 +71,7 @@ export enum NotificationStatus {
   UNREAD = 'unread',
   ARCHIVED = 'archived',
 }
+
+export type PreferencesFilter = Pick<NotificationFilter, 'tags'>;
 
 export { Localization, LocalizationKey } from './context/LocalizationContext';

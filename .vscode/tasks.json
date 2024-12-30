@@ -20,13 +20,8 @@
           "beginsPattern": "Successfully compiled",
           "endsPattern": "Started application in NODE_ENV"
         }
-      },
-      "dependsOn": [
-        "SHARED",
-        "APPLICATION GENERIC",
-        "DAL"
-      ]
-    },
+      }
+    },   
     {
       "type": "npm",
       "script": "start",
@@ -59,6 +54,25 @@
       "type": "npm",
       "script": "start",
       "isBackground": true,
+      "label": "DASHBOARD",
+      "path": "/apps/dashboard",
+      "icon": {
+        "id": "browser",
+        "color": "terminal.ansiGreen"
+      },
+      "problemMatcher": {
+        "base": "$tsc-watch",
+        "owner": "typescript",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Compiling...",
+          "endsPattern": "webpack compiled successfully"
+        }
+      }
+    },    {
+      "type": "npm",
+      "script": "start",
+      "isBackground": true,
       "label": "WEB",
       "path": "/apps/web",
       "icon": {
@@ -86,7 +100,7 @@
       "script": "start",
       "isBackground": true,
       "label": "SHARED",
-      "path": "/libs/shared",
+      "path": "/packages/shared",
       "problemMatcher": "$tsc-watch"
     },
     {

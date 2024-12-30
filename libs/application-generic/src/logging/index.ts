@@ -1,11 +1,11 @@
 import { NestInterceptor, RequestMethod } from '@nestjs/common';
 import {
-  LoggerErrorInterceptor,
-  Logger,
-  LoggerModule,
-  PinoLogger,
   getLoggerToken,
+  Logger,
+  LoggerErrorInterceptor,
+  LoggerModule,
   Params,
+  PinoLogger,
 } from 'nestjs-pino';
 import { storage, Store } from 'nestjs-pino/storage';
 import { sensitiveFields } from './masking';
@@ -41,13 +41,13 @@ export function getLogLevel() {
   if (loggingLevelArr.indexOf(logLevel) === -1) {
     // eslint-disable-next-line no-console
     console.log(
-      `${logLevel}is not a valid log level of ${
-        loggingLevelArr
-      }. Reverting to info.`,
+      `${logLevel}is not a valid log level of ${loggingLevelArr}. Reverting to info.`,
     );
 
     logLevel = 'info';
   }
+  // eslint-disable-next-line no-console
+  console.log(`Log Level Chosen: ${logLevel}`);
 
   return logLevel;
 }
@@ -80,7 +80,7 @@ function getLoggingVariables(): ILoggingVariables {
 export function createNestLoggingModuleOptions(
   settings: ILoggerSettings,
 ): Params {
-  const values = getLoggingVariables();
+  const values: ILoggingVariables = getLoggingVariables();
 
   let redactFields: string[] = sensitiveFields.map((val) => val);
 
@@ -102,6 +102,7 @@ export function createNestLoggingModuleOptions(
     ? { target: 'pino-pretty' }
     : undefined;
 
+  // eslint-disable-next-line no-console
   console.log(loggingLevelSet);
 
   // eslint-disable-next-line no-console
@@ -117,7 +118,7 @@ export function createNestLoggingModuleOptions(
       level: values.level,
       redact: {
         paths: redactFields,
-        censor: '[REDACTED]',
+        censor: customRedaction,
       },
       base: {
         pid: process.pid,
@@ -128,9 +129,35 @@ export function createNestLoggingModuleOptions(
       },
       transport,
       autoLogging: !['test', 'local'].includes(process.env.NODE_ENV),
+      /**
+       * These custom props are only added to 'request completed' and 'request errored' logs.
+       * Logs generated during request processing won't have these props by default.
+       * To include these or any other custom props in mid-request logs,
+       * use `PinoLogger.assign(<props>)` explicitly before logging.
+       */
+      customProps: (req: any, res: any) => ({
+        user: {
+          userId: req?.user?._id || null,
+          environmentId: req?.user?.environmentId || null,
+          organizationId: req?.user?.organizationId || null,
+        },
+        authScheme: req?.authScheme,
+        rateLimitPolicy: res?.rateLimitPolicy,
+      }),
     },
   };
 }
+
+const customRedaction = (value: any, path: string[]) => {
+  /*
+   * Logger.
+   * if (obj.email && typeof obj.email === 'string') {
+   *   obj.email = '[REDACTED]';
+   * }
+   *
+   * return JSON.parse(JSON.stringify(obj));
+   */
+};
 
 interface ILoggerSettings {
   serviceName: string;

@@ -1,7 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import { compress } from 'esbuild-plugin-compress';
 import { solidPlugin } from 'esbuild-plugin-solid';
+import fs from 'fs';
+import path from 'path';
 import postcss from 'postcss';
 import loadPostcssConfig from 'postcss-load-config';
 import { defineConfig, Options } from 'tsup';
@@ -22,14 +22,6 @@ const buildCSS = async () => {
   fs.writeFileSync(destinationCssFilePath, processedCss);
 };
 
-const runAfterLast =
-  (commands: Array<string | false>) =>
-  (...configs: Options[]) => {
-    const [last, ...rest] = configs.reverse();
-
-    return [...rest.reverse(), { ...last, onSuccess: [last.onSuccess, ...commands].filter(Boolean).join(' && ') }];
-  };
-
 const isProd = process.env?.NODE_ENV === 'production';
 
 const baseConfig: Options = {
@@ -43,20 +35,16 @@ const baseConfig: Options = {
 const baseModuleConfig: Options = {
   ...baseConfig,
   treeshake: true,
+  dts: true,
   entry: {
     index: './src/index.ts',
     'ui/index': './src/ui/index.ts',
-  },
-  outExtension: ({ format }) => {
-    return {
-      js: format === 'cjs' ? '.cjs' : '.mjs',
-    };
+    'themes/index': './src/ui/themes/index.ts',
+    'internal/index': './src/ui/internal/index.ts',
   },
 };
 
 export default defineConfig((config: Options) => {
-  const copyPackageJson = (format: 'esm' | 'cjs') => `cp ./package.${format}.json ./dist/${format}/package.json`;
-
   const cjs: Options = {
     ...baseModuleConfig,
     format: 'cjs',
@@ -94,5 +82,5 @@ export default defineConfig((config: Options) => {
     onSuccess: async () => await buildCSS(),
   };
 
-  return runAfterLast(['pnpm run build:declarations', copyPackageJson('esm'), copyPackageJson('cjs')])(umd, esm, cjs);
+  return [cjs, esm, umd];
 });

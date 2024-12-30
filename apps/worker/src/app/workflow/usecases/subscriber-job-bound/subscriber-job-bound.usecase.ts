@@ -1,7 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { NotificationTemplateEntity, NotificationTemplateRepository, IntegrationRepository } from '@novu/dal';
 import {
+  NotificationTemplateEntity,
+  NotificationTemplateRepository,
+  IntegrationRepository,
+  EnvironmentRepository,
+} from '@novu/dal';
+import {
+  buildWorkflowPreferences,
   ChannelTypeEnum,
   InAppProviderIdEnum,
   ISubscribersDefine,
@@ -34,6 +40,7 @@ export class SubscriberJobBound {
     private createNotificationJobs: CreateNotificationJobs,
     private processSubscriber: ProcessSubscriber,
     private integrationRepository: IntegrationRepository,
+    private environmentRepository: EnvironmentRepository,
     private notificationTemplateRepository: NotificationTemplateRepository,
     private logger: PinoLogger,
     private analyticsService: AnalyticsService
@@ -58,6 +65,7 @@ export class SubscriberJobBound {
       identifier,
       _subscriberSource,
       requestCategory,
+      environmentName,
     } = command;
 
     const template =
@@ -90,6 +98,7 @@ export class SubscriberJobBound {
       source: command.payload.__source || 'api',
       subscriberSource: _subscriberSource || null,
       requestCategory: requestCategory || null,
+      environmentName,
       statelessWorkflow: !!command.bridge?.url,
     });
 
@@ -128,6 +137,16 @@ export class SubscriberJobBound {
       userId,
       tenant,
       bridgeUrl: command.bridge?.url,
+      /*
+       * Only populate preferences if the command contains a `bridge` property,
+       * indicating that the execution is stateless.
+       *
+       * TODO: refactor the Worker execution to handle both stateless and stateful workflows
+       * transparently.
+       */
+      ...(command.bridge?.workflow && {
+        preferences: buildWorkflowPreferences(command.bridge?.workflow?.preferences),
+      }),
     };
 
     if (actor) {

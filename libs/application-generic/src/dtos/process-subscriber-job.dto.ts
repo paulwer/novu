@@ -6,7 +6,7 @@ import {
   TriggerRequestCategoryEnum,
 } from '@novu/shared';
 import { SubscriberEntity } from '@novu/dal';
-import { DiscoverWorkflowOutput } from '@novu/framework';
+import { DiscoverWorkflowOutput } from '@novu/framework/internal';
 
 import {
   IBulkJobParams,
@@ -15,6 +15,7 @@ import {
 
 export interface IProcessSubscriberDataDto {
   environmentId: string;
+  environmentName: string;
   organizationId: string;
   userId: string;
   transactionId: string;

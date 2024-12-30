@@ -1,9 +1,11 @@
 import { Skeleton } from '@mantine/core';
+import { IconButton } from '@novu/novui';
 import { css } from '@novu/novui/css';
-import { IconCable, IconPlayArrow } from '@novu/novui/icons';
-import { Stack } from '@novu/novui/jsx';
+import { IconCable, IconPlayArrow, IconSettings } from '@novu/novui/icons';
+import { HStack, Stack } from '@novu/novui/jsx';
 import { token } from '@novu/novui/tokens';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import type { DiscoverWorkflowOutput } from '@novu/framework/internal';
 import { useTelemetry } from '../../../../hooks/useNovuAPI';
 import { useWorkflow } from '../../../hooks/useBridgeAPI';
 import { useStudioWorkflowsNavigation } from '../../../hooks/useStudioWorkflowsNavigation';
@@ -11,15 +13,19 @@ import { PageContainer } from '../../../layout/PageContainer';
 import { useStudioState } from '../../../StudioStateProvider';
 import { OutlineButton } from '../../OutlineButton';
 import { WorkflowsPageTemplate } from '../layout/WorkflowsPageTemplate';
+import { StudioWorkflowSettingsSidePanel } from '../preferences/StudioWorkflowSettingsSidePanel';
+import { WorkflowDetailFormContextProvider } from '../preferences/WorkflowDetailFormContextProvider';
 import { WorkflowBackgroundWrapper } from './WorkflowBackgroundWrapper';
 import { WorkflowFloatingMenu } from './WorkflowFloatingMenu';
 import { WorkflowNodes } from './WorkflowNodes';
 
-export const WorkflowsDetailPage = () => {
+const BaseWorkflowsDetailPage = () => {
   const { currentWorkflowId, goToStep, goToTest } = useStudioWorkflowsNavigation();
   const { data: workflow, isLoading } = useWorkflow(currentWorkflowId);
   const track = useTelemetry();
   const { isLocalStudio } = useStudioState() || {};
+
+  const [isPanelOpen, setPanelOpen] = useState<boolean>(false);
 
   useEffect(() => {
     track('Workflow open - [Studio]', {
@@ -33,7 +39,10 @@ export const WorkflowsDetailPage = () => {
     return <WorkflowsContentLoading />;
   }
 
-  const title = workflow?.workflowId;
+  // After loading has completed, we can safely cast the workflow to DiscoverWorkflowOutput
+  const fetchedWorkflow = workflow as DiscoverWorkflowOutput;
+
+  const title = fetchedWorkflow?.name || fetchedWorkflow.workflowId;
 
   return (
     <WorkflowsPageTemplate
@@ -41,11 +50,12 @@ export const WorkflowsDetailPage = () => {
       icon={<IconCable size="32" />}
       title={title}
       actions={
-        <>
+        <HStack gap="75">
           <OutlineButton Icon={IconPlayArrow} onClick={() => goToTest(currentWorkflowId)}>
             Test workflow
           </OutlineButton>
-        </>
+          <IconButton Icon={IconSettings} onClick={() => setPanelOpen(true)} />
+        </HStack>
       }
     >
       <WorkflowBackgroundWrapper>
@@ -66,7 +76,16 @@ export const WorkflowsDetailPage = () => {
           right: '50',
         })}
       />
+      {isPanelOpen && <StudioWorkflowSettingsSidePanel onClose={() => setPanelOpen(false)} />}
     </WorkflowsPageTemplate>
+  );
+};
+
+export const WorkflowsDetailPage = () => {
+  return (
+    <WorkflowDetailFormContextProvider>
+      <BaseWorkflowsDetailPage />
+    </WorkflowDetailFormContextProvider>
   );
 };
 

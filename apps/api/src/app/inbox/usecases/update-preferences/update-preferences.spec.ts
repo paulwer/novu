@@ -3,6 +3,7 @@ import {
   GetSubscriberGlobalPreference,
   GetSubscriberTemplatePreference,
   GetSubscriberGlobalPreferenceCommand,
+  UpsertPreferences,
 } from '@novu/application-generic';
 import { NotificationTemplateRepository, SubscriberPreferenceRepository, SubscriberRepository } from '@novu/dal';
 import { PreferenceLevelEnum } from '@novu/shared';
@@ -11,7 +12,12 @@ import sinon from 'sinon';
 import { AnalyticsEventsEnum } from '../../utils';
 import { UpdatePreferences } from './update-preferences.usecase';
 
-const mockedSubscriber: any = { _id: '123', subscriberId: 'test-mockSubscriber', firstName: 'test', lastName: 'test' };
+const mockedSubscriber: any = {
+  _id: '6447aff3d89122e250412c29',
+  subscriberId: 'test-mockSubscriber',
+  firstName: 'test',
+  lastName: 'test',
+};
 
 const mockedSubscriberPreference: any = {
   _id: '123',
@@ -41,7 +47,7 @@ const mockedGlobalPreference: any = {
 };
 
 const mockedWorkflow: any = {
-  _id: 'workflow-1',
+  _id: '6447aff3d89122e250412c28',
   name: 'test-workflow',
   critical: false,
   triggers: [{ identifier: 'test-trigger' }],
@@ -56,6 +62,7 @@ describe('UpdatePreferences', () => {
   let subscriberPreferenceRepositoryMock: sinon.SinonStubbedInstance<SubscriberPreferenceRepository>;
   let getSubscriberGlobalPreferenceMock: sinon.SinonStubbedInstance<GetSubscriberGlobalPreference>;
   let getSubscriberTemplatePreferenceUsecase: sinon.SinonStubbedInstance<GetSubscriberTemplatePreference>;
+  let upsertPreferencesMock: sinon.SinonStubbedInstance<UpsertPreferences>;
 
   beforeEach(() => {
     subscriberRepositoryMock = sinon.createStubInstance(SubscriberRepository);
@@ -64,6 +71,7 @@ describe('UpdatePreferences', () => {
     subscriberPreferenceRepositoryMock = sinon.createStubInstance(SubscriberPreferenceRepository);
     getSubscriberGlobalPreferenceMock = sinon.createStubInstance(GetSubscriberGlobalPreference);
     getSubscriberTemplatePreferenceUsecase = sinon.createStubInstance(GetSubscriberTemplatePreference);
+    upsertPreferencesMock = sinon.createStubInstance(UpsertPreferences);
 
     updatePreferences = new UpdatePreferences(
       subscriberPreferenceRepositoryMock as any,
@@ -71,7 +79,8 @@ describe('UpdatePreferences', () => {
       subscriberRepositoryMock as any,
       analyticsServiceMock as any,
       getSubscriberGlobalPreferenceMock as any,
-      getSubscriberTemplatePreferenceUsecase as any
+      getSubscriberTemplatePreferenceUsecase as any,
+      upsertPreferencesMock as any
     );
   });
 
@@ -153,10 +162,6 @@ describe('UpdatePreferences', () => {
         _workflowId: undefined,
         channels: {
           chat: true,
-          email: undefined,
-          sms: undefined,
-          in_app: undefined,
-          push: undefined,
         },
       },
     ]);
@@ -201,10 +206,6 @@ describe('UpdatePreferences', () => {
         _workflowId: undefined,
         channels: {
           chat: true,
-          email: undefined,
-          sms: undefined,
-          in_app: undefined,
-          push: undefined,
         },
       },
     ]);
@@ -221,7 +222,7 @@ describe('UpdatePreferences', () => {
       organizationId: 'org-1',
       subscriberId: 'test-mockSubscriber',
       level: PreferenceLevelEnum.TEMPLATE,
-      workflowId: 'workflow-1',
+      workflowId: '6447aff3d89122e250412c28',
       chat: true,
       email: false,
     };
@@ -263,9 +264,6 @@ describe('UpdatePreferences', () => {
         channels: {
           chat: true,
           email: false,
-          in_app: undefined,
-          push: undefined,
-          sms: undefined,
         },
       },
     ]);

@@ -1,21 +1,22 @@
 import { Types } from 'mongoose';
 import {
-  FilterParts,
   BuilderFieldType,
   BuilderGroupValues,
-  IPreferenceChannels,
-  IWorkflowStepMetadata,
-  NotificationTemplateCustomData,
-  IStepVariant,
+  ControlsDto,
+  FilterParts,
   IMessageFilter,
-  INotificationTrigger,
-  TriggerTypeEnum,
-  INotificationTriggerVariable,
-  ITriggerReservedVariable,
+  IMessageTemplate,
   INotificationTemplate,
   INotificationTemplateStep,
-  IMessageTemplate,
-  ControlsDto,
+  INotificationTrigger,
+  INotificationTriggerVariable,
+  IPreferenceChannels,
+  IStepVariant,
+  ITriggerReservedVariable,
+  IWorkflowStepMetadata,
+  NotificationTemplateCustomData,
+  TriggerTypeEnum,
+  WorkflowOriginEnum,
   WorkflowTypeEnum,
 } from '@novu/shared';
 
@@ -36,8 +37,10 @@ export class NotificationTemplateEntity implements INotificationTemplate {
 
   draft: boolean;
 
+  /** @deprecated - use `Preferences` entity instead */
   preferenceSettings: IPreferenceChannels;
 
+  /** @deprecated - use `Preferences` entity instead */
   critical: boolean;
 
   tags: string[];
@@ -75,6 +78,8 @@ export class NotificationTemplateEntity implements INotificationTemplate {
   data?: NotificationTemplateCustomData;
 
   type?: WorkflowTypeEnum;
+
+  origin?: WorkflowOriginEnum;
 
   rawData?: any;
 
@@ -129,7 +134,10 @@ export class StepVariantEntity implements IStepVariant {
   shouldStopOnFail?: boolean;
 
   bridgeUrl?: string;
-
+  /**
+   * Control variables for the step
+   * Same as ControlValues
+   */
   controlVariables?: ControlsDto;
 
   controls?: {

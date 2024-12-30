@@ -7,8 +7,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import slugify from 'slugify';
-import shortid from 'shortid';
 
 import {
   FeedRepository,
@@ -24,9 +22,12 @@ import {
   isBridgeWorkflow,
   IStepVariant,
   TriggerTypeEnum,
+  WorkflowOriginEnum,
   WorkflowTypeEnum,
+  slugify,
 } from '@novu/shared';
 
+import { PinoLogger } from 'nestjs-pino';
 import {
   CreateWorkflowCommand,
   NotificationStep,
@@ -41,6 +42,7 @@ import {
   CreateMessageTemplateCommand,
 } from '../message-template';
 import { ApiException, PlatformException } from '../../utils/exceptions';
+import { shortId } from '../../utils/generate-id';
 
 @Injectable()
 export class CreateWorkflow {
@@ -52,32 +54,16 @@ export class CreateWorkflow {
     private createChange: CreateChange,
     @Inject(forwardRef(() => AnalyticsService))
     private analyticsService: AnalyticsService,
+    private logger: PinoLogger,
     protected moduleRef: ModuleRef,
   ) {}
 
   async execute(usecaseCommand: CreateWorkflowCommand) {
     const blueprintCommand = await this.processBlueprint(usecaseCommand);
     const command = blueprintCommand ?? usecaseCommand;
-
     this.validatePayload(command);
 
-    let triggerIdentifier: string;
-    if (command.type === WorkflowTypeEnum.BRIDGE)
-      /*
-       * Bridge workflows need to have the identifier preserved to ensure that
-       * the Framework-defined identifier is the source of truth.
-       */
-      triggerIdentifier = command.name;
-    else {
-      /**
-       * For non-bridge workflows, we use a slugified version of the workflow name
-       * as the trigger identifier to provide a better trigger DX.
-       */
-      triggerIdentifier = `${slugify(command.name, {
-        lower: true,
-        strict: true,
-      })}`;
-    }
+    const triggerIdentifier = this.generateTriggerIdentifier(command);
 
     const parentChangeId: string =
       NotificationTemplateRepository.createObjectId();
@@ -134,6 +120,32 @@ export class CreateWorkflow {
     return storedWorkflow;
   }
 
+  private generateTriggerIdentifier(command: CreateWorkflowCommand) {
+    if (command.triggerIdentifier) {
+      return command.triggerIdentifier;
+    }
+
+    let triggerIdentifier: string;
+    if (
+      command.type === WorkflowTypeEnum.BRIDGE &&
+      command.origin === WorkflowOriginEnum.EXTERNAL
+    )
+      /*
+       * Bridge workflows need to have the identifier preserved to ensure that
+       * the Framework-defined identifier is the source of truth.
+       */
+      triggerIdentifier = command.name;
+    else {
+      /**
+       * For non-bridge workflows, we use a slugified version of the workflow name
+       * as the trigger identifier to provide a better trigger DX.
+       */
+      triggerIdentifier = slugify(command.name);
+    }
+
+    return triggerIdentifier;
+  }
+
   private validatePayload(command: CreateWorkflowCommand) {
     const variants = command.steps
       ? command.steps?.flatMap((step) => step.variants || [])
@@ -157,18 +169,14 @@ export class CreateWorkflow {
       contentService.extractMessageVariables(command.steps);
     const subscriberVariables =
       contentService.extractSubscriberMessageVariables(command.steps);
-
-    const templateCheckIdentifier =
-      await this.notificationTemplateRepository.findByTriggerIdentifier(
-        command.environmentId,
-        triggerIdentifier,
-      );
+    const identifier = await this.generateUniqueIdentifier(
+      command,
+      triggerIdentifier,
+    );
 
     const trigger: INotificationTrigger = {
       type: TriggerTypeEnum.EVENT,
-      identifier: `${triggerIdentifier}${
-        !templateCheckIdentifier ? '' : `-${shortid.generate()}`
-      }`,
+      identifier,
       variables: variables.map((i) => {
         return {
           name: i.name,
@@ -194,6 +202,38 @@ export class CreateWorkflow {
     };
 
     return trigger;
+  }
+
+  private async generateUniqueIdentifier(
+    command: CreateWorkflowCommand,
+    triggerIdentifier: string,
+  ) {
+    const maxAttempts = 3;
+    let identifier = '';
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const candidateIdentifier =
+        attempt === 0 ? triggerIdentifier : `${triggerIdentifier}-${shortId()}`;
+
+      const isIdentifierExist =
+        await this.notificationTemplateRepository.findByTriggerIdentifier(
+          command.environmentId,
+          candidateIdentifier,
+        );
+
+      if (!isIdentifierExist) {
+        identifier = candidateIdentifier;
+        break;
+      }
+    }
+
+    if (!identifier) {
+      throw new ApiException(
+        `Unable to generate a unique identifier. Please provide a different workflow name.${command.name}`,
+      );
+    }
+
+    return identifier;
   }
 
   private sendTemplateCreationEvent(
@@ -243,6 +283,8 @@ export class CreateWorkflow {
     trigger: INotificationTrigger,
     triggerIdentifier: string,
   ) {
+    this.logger.info(`Creating workflow ${JSON.stringify(command)}`);
+
     const savedWorkflow = await this.notificationTemplateRepository.create({
       _organizationId: command.organizationId,
       _creatorId: command.userId,
@@ -259,6 +301,7 @@ export class CreateWorkflow {
       _notificationGroupId: command.notificationGroupId,
       blueprintId: command.blueprintId,
       type: command.type,
+      origin: command.origin,
       ...(command.rawData ? { rawData: command.rawData } : {}),
       ...(command.payloadSchema
         ? { payloadSchema: command.payloadSchema }
@@ -308,8 +351,7 @@ export class CreateWorkflow {
             preheader: step.template.preheader,
             senderName: step.template.senderName,
             actor: step.template.actor,
-            inputs: step.template.controls || step.template.inputs,
-            controls: step.template.controls || step.template.inputs,
+            controls: step.template.controls,
             output: step.template.output,
             stepId: step.template.stepId,
             parentChangeId,
@@ -447,6 +489,7 @@ export class CreateWorkflow {
       blueprintId: command.blueprintId,
       __source: command.__source,
       type: WorkflowTypeEnum.REGULAR,
+      origin: command.origin ?? WorkflowOriginEnum.NOVU_CLOUD,
     });
   }
 

@@ -12,7 +12,7 @@ on:
       - main
     paths:
       - 'apps/web/**'
-      - 'libs/shared/**'
+      - 'packages/shared/**'
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -42,16 +42,4 @@ jobs:
       netlify_site_id: 45396446-dc86-4ad6-81e4-86d3eb78d06f
       clerk_publishable_key: pk_live_Y2xlcmsubm92dS1zdGFnaW5nLmNvJA
       clerk_is_ee_auth_enabled: true
-    secrets: inherit
-
-  publish_docker_image_web:
-    needs: test_web
-    if: "!contains(github.event.head_commit.message, 'ci skip')"
-    uses: ./.github/workflows/reusable-docker.yml
-    with:
-      environment: Development
-      package_name: novu/web
-      project_path: apps/web
-      local_tag: novu-web
-      env_tag: dev
     secrets: inherit

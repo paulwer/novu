@@ -55,12 +55,12 @@ export const WorkflowsStepEditorPageV2 = () => {
   useEffect(() => {
     if (!currentWorkflow) return;
     if (!isInitialLoading) {
-      setControls(controlVariables?.controls || controlVariables?.inputs);
+      setControls(controlVariables?.controls);
     }
   }, [currentWorkflow, isInitialLoading, controlVariables, setControls]);
 
   const handleTestClick = async () => {
-    navigate(parseUrl(ROUTES.WORKFLOWS_V2_TEST, { workflowId: templateId }));
+    navigate(parseUrl(ROUTES.WORKFLOWS_V2_TEST, { templateId }));
   };
 
   const onControlsSave = async () => {
@@ -94,7 +94,7 @@ export const WorkflowsStepEditorPageV2 = () => {
         loadingPreview={loadingPreview}
         isSavingControls={isSavingControls}
         error={error}
-        defaultControls={controlVariables?.controls || controlVariables?.inputs || {}}
+        defaultControls={controlVariables?.controls || {}}
         onControlsChange={onControlsChange}
         onControlsSave={onControlsSave}
       />
