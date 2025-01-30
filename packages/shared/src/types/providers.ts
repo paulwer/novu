@@ -46,6 +46,7 @@ export enum CredentialsKeyEnum {
   externalLink = 'externalLink',
   channelId = 'channelId',
   phoneNumberIdentification = 'phoneNumberIdentification',
+  ApiVersion = 'apiVersion',
 }
 
 export enum EmailProviderIdEnum {
@@ -139,3 +140,11 @@ export type ProvidersIdEnum =
   | PushProviderIdEnum
   | InAppProviderIdEnum
   | ChatProviderIdEnum;
+
+export const ProvidersIdEnumConst = {
+  EmailProviderIdEnum,
+  SmsProviderIdEnum,
+  PushProviderIdEnum,
+  InAppProviderIdEnum,
+  ChatProviderIdEnum,
+};

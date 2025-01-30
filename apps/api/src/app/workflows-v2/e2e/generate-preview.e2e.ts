@@ -14,7 +14,7 @@ import { EnvironmentRepository, NotificationTemplateEntity, NotificationTemplate
 
 const TEST_WORKFLOW_NAME = 'Test Workflow Name';
 
-describe('Workflow Step Preview - POST /:workflowId/step/:stepId/preview', () => {
+describe('Workflow Step Preview - POST /:workflowId/step/:stepId/preview #novu-v2', () => {
   let session: UserSession;
   let workflowsClient: ReturnType<typeof createWorkflowClient>;
   const notificationTemplateRepository = new NotificationTemplateRepository();
@@ -59,7 +59,7 @@ describe('Workflow Step Preview - POST /:workflowId/step/:stepId/preview', () =>
           preview: {
             subject: 'Welcome {{subscriber.firstName}}',
             // cspell:disable-next-line
-            body: 'Hello {{subscriber.firstName}} {{subscriber.lastName}}, Welcome to {{PAYLOAD.ORGANIZATIONNAME | UPCASE}}!',
+            body: 'Hello {{subscriber.firstName}} {{subscriber.lastName}}, Welcome to {{PAYLOAD.ORGANIZATIONNAME}}!',
           },
           type: 'in_app',
         },
@@ -69,7 +69,7 @@ describe('Workflow Step Preview - POST /:workflowId/step/:stepId/preview', () =>
             lastName: '{{subscriber.lastName}}',
           },
           payload: {
-            organizationName: '{{payload.organizationName | upcase}}',
+            organizationName: '{{payload.organizationName}}',
           },
         },
       },
@@ -199,7 +199,6 @@ describe('Workflow Step Preview - POST /:workflowId/step/:stepId/preview', () =>
           body: 'This is a body',
         },
         primaryUrlLabel: 'https://example.com',
-        organizationName: 'Novu',
       },
     };
     const { status, body } = await session.testAgent.post(`/v2/workflows/${workflow._id}/step/${stepId}/preview`).send({
@@ -247,7 +246,6 @@ describe('Workflow Step Preview - POST /:workflowId/step/:stepId/preview', () =>
             body: 'This is a body',
           },
           primaryUrlLabel: 'https://example.com',
-          organizationName: 'Novu',
         },
       },
     });
@@ -409,7 +407,8 @@ describe('Workflow Step Preview - POST /:workflowId/step/:stepId/preview', () =>
       result: {
         preview: {
           subject: 'Welcome John',
-          body: 'Hello John, your order #{{payload.orderId}} is ready!', // orderId is not defined in the payload schema
+          // missing orderId will be replaced with placeholder "{{payload.orderId}}"
+          body: 'Hello John, your order #{{payload.orderId}} is ready!',
         },
         type: 'in_app',
       },
@@ -417,7 +416,36 @@ describe('Workflow Step Preview - POST /:workflowId/step/:stepId/preview', () =>
         payload: {
           lastName: '{{payload.lastName}}',
           organizationName: '{{payload.organizationName}}',
+          firstName: 'John',
           orderId: '{{payload.orderId}}',
+        },
+      },
+    });
+
+    const response2 = await session.testAgent.post(`/v2/workflows/${workflow._id}/step/${stepId}/preview`).send({
+      controlValues,
+      previewPayload: {
+        payload: {
+          firstName: 'John',
+          orderId: '123456', // orderId is will override the variable example that driven by workflow payload schema
+        },
+      },
+    });
+
+    expect(response2.status).to.equal(201);
+    expect(response2.body.data).to.deep.equal({
+      result: {
+        preview: {
+          subject: 'Welcome John',
+          body: 'Hello John, your order #123456 is ready!', // orderId is not defined in the payload schema
+        },
+        type: 'in_app',
+      },
+      previewPayloadExample: {
+        payload: {
+          lastName: '{{payload.lastName}}',
+          organizationName: '{{payload.organizationName}}',
+          orderId: '123456',
           firstName: 'John',
         },
       },

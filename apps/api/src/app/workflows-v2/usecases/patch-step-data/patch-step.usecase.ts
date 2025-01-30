@@ -1,7 +1,12 @@
 /* eslint-disable no-param-reassign */
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { StepDataDto, UserSessionData } from '@novu/shared';
-import { NotificationStepEntity, NotificationTemplateEntity, NotificationTemplateRepository } from '@novu/dal';
+import { StepResponseDto, UserSessionData, ControlValuesLevelEnum } from '@novu/shared';
+import {
+  ControlValuesRepository,
+  NotificationStepEntity,
+  NotificationTemplateEntity,
+  NotificationTemplateRepository,
+} from '@novu/dal';
 import {
   GetWorkflowByIdsUseCase,
   UpsertControlValuesCommand,
@@ -9,7 +14,6 @@ import {
 } from '@novu/application-generic';
 import { PatchStepCommand } from './patch-step.command';
 import { BuildStepDataUsecase } from '../build-step-data';
-import { PostProcessWorkflowUpdate } from '../post-process-workflow-update';
 
 type ValidNotificationWorkflow = {
   currentStep: NonNullable<NotificationStepEntity>;
@@ -22,17 +26,13 @@ export class PatchStepUsecase {
     private buildStepDataUsecase: BuildStepDataUsecase,
     private notificationTemplateRepository: NotificationTemplateRepository,
     private upsertControlValuesUseCase: UpsertControlValuesUseCase,
-    private postProcessWorkflowUpdate: PostProcessWorkflowUpdate
+    private controlValuesRepository: ControlValuesRepository
   ) {}
 
-  async execute(command: PatchStepCommand): Promise<StepDataDto> {
+  async execute(command: PatchStepCommand): Promise<StepResponseDto> {
     const persistedItems = await this.loadPersistedItems(command);
     await this.patchFieldsOnPersistedItems(command, persistedItems);
-    const updatedWorkflow = await this.postProcessWorkflowUpdate.execute({
-      workflow: persistedItems.workflow,
-      user: command.user,
-    });
-    await this.persistWorkflow(updatedWorkflow, command.user);
+    await this.persistWorkflow(persistedItems.workflow, command.user);
 
     return await this.buildStepDataUsecase.execute(command);
   }
@@ -43,7 +43,17 @@ export class PatchStepUsecase {
     }
 
     if (command.controlValues !== undefined) {
-      await this.updateControlValues(persistedItems, command);
+      if (command.controlValues === null) {
+        await this.controlValuesRepository.delete({
+          _environmentId: command.user.environmentId,
+          _organizationId: command.user.organizationId,
+          _workflowId: persistedItems.workflow._id,
+          _stepId: persistedItems.currentStep._id as string,
+          level: ControlValuesLevelEnum.STEP_CONTROLS,
+        });
+      } else {
+        await this.updateControlValues(persistedItems, command);
+      }
     }
   }
 

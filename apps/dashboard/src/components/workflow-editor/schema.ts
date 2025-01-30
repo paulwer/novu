@@ -13,22 +13,20 @@ export const workflowSchema = z.object({
   tags: z
     .array(z.string().min(0).max(MAX_TAG_LENGTH))
     .max(MAX_TAG_ELEMENTS)
-    .optional()
     .refine((tags) => tags?.every((tag) => tag.length <= MAX_TAG_LENGTH), {
       message: `Tags must be less than ${MAX_TAG_LENGTH} characters`,
     })
+    .optional()
     .refine((tags) => new Set(tags).size === tags?.length, {
       message: 'Duplicate tags are not allowed',
     }),
   description: z.string().max(MAX_DESCRIPTION_LENGTH).optional(),
 });
 
-export const buildStepSchema = (controlsSchema?: z.ZodObject<any>) =>
-  z.object({
-    name: z.string().min(1).max(MAX_NAME_LENGTH),
-    stepId: z.string(),
-    ...(controlsSchema ? { controlValues: controlsSchema } : {}),
-  });
+export const stepSchema = z.object({
+  name: z.string().min(1).max(MAX_NAME_LENGTH),
+  stepId: z.string(),
+});
 
 export const buildDynamicFormSchema = ({
   to,
@@ -81,21 +79,6 @@ export const buildDynamicFormSchema = ({
 };
 
 export type TestWorkflowFormType = z.infer<ReturnType<typeof buildDynamicFormSchema>>;
-
-export const makeObjectFromSchema = ({
-  properties,
-}: {
-  properties: Readonly<Record<string, JSONSchemaDefinition>>;
-}) => {
-  return Object.keys(properties).reduce((acc, key) => {
-    const value = properties[key];
-    if (typeof value !== 'object') {
-      return acc;
-    }
-
-    return { ...acc, [key]: value.default };
-  }, {});
-};
 
 const ChannelPreferenceSchema = z.object({
   enabled: z.boolean().default(true),

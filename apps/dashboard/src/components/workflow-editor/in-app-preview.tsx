@@ -1,5 +1,5 @@
-import { HTMLAttributes, useMemo } from 'react';
 import { parseMarkdownIntoTokens } from '@novu/js/internal';
+import { HTMLAttributes, useMemo } from 'react';
 
 import { InboxArrowDown } from '@/components/icons/inbox-arrow-down';
 import { InboxBell } from '@/components/icons/inbox-bell';
@@ -29,7 +29,7 @@ export const InAppPreview = (props: InAppPreviewProps) => {
   return (
     <div
       className={cn(
-        'border-foreground-200 to-background/90 pointer-events-none relative mx-auto flex h-full w-full flex-col gap-4 rounded-xl px-2 py-3 shadow-sm',
+        'border-foreground-200 to-background/90 pointer-events-none relative mx-auto flex h-full w-full flex-col gap-4 rounded-xl px-4 py-3 shadow-sm',
         className
       )}
       {...rest}
@@ -42,7 +42,7 @@ export const InAppPreviewHeader = (props: InAppPreviewHeaderProps) => {
   const { className, ...rest } = props;
 
   return (
-    <div className={cn('z-20 flex items-center justify-between px-2 text-neutral-300', className)} {...rest}>
+    <div className={cn('z-20 flex items-center justify-between text-neutral-300', className)} {...rest}>
       <div className="flex items-center gap-2">
         <span className="text-xl font-medium">Inbox</span>
         <InboxArrowDown />
@@ -51,7 +51,7 @@ export const InAppPreviewHeader = (props: InAppPreviewHeaderProps) => {
         <span className="p-0.5">
           <InboxEllipsis />
         </span>
-        <span className="p-0.5">
+        <span>
           <InboxSettings />
         </span>
       </div>
@@ -138,10 +138,10 @@ export const InAppPreviewPrimaryAction = (props: InAppPreviewPrimaryActionProps)
 
   return (
     <Button
-      className={cn('px-3 text-xs font-medium shadow-none', className)}
+      className={cn('h-6 px-3 text-xs font-medium shadow-none', className)}
       type="button"
       variant="primary"
-      size="xs"
+      size="2xs"
       {...rest}
     >
       {children}
@@ -162,7 +162,14 @@ export const InAppPreviewSecondaryAction = (props: InAppPreviewSecondaryActionPr
   }
 
   return (
-    <Button variant="outline" className={cn('px-3 text-xs font-medium', className)} type="button" size="xs" {...rest}>
+    <Button
+      variant="secondary"
+      mode="outline"
+      className={cn('h-6 px-3 text-xs font-medium', className)}
+      type="button"
+      size="2xs"
+      {...rest}
+    >
       {children}
     </Button>
   );

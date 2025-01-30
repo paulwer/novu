@@ -65,10 +65,53 @@ export function removeEndpointsWithoutApiKey<T>(openApiDocument: T): T {
 
   return parsedDocument;
 }
-export function transformDocument(inputDocument: OpenAPIObject) {
+export function transformDocument(inputDocument: OpenAPIObject, shouldRemoveBearer: boolean = true) {
   Nimma.query(inputDocument, {
     [jpath]: liftDataProperty,
   });
 
-  return removeEndpointsWithoutApiKey(inputDocument) as OpenAPIObject;
+  const openAPIObject = shouldRemoveBearer
+    ? (removeEndpointsWithoutApiKey(inputDocument) as OpenAPIObject)
+    : inputDocument;
+
+  return addIdempotencyKeyHeader(openAPIObject) as OpenAPIObject;
+}
+export function addIdempotencyKeyHeader<T>(openApiDocument: T): T {
+  const parsedDocument = JSON.parse(JSON.stringify(openApiDocument));
+
+  if (!parsedDocument.paths) {
+    throw new Error('Invalid OpenAPI document');
+  }
+
+  const idempotencyKeyHeader = {
+    name: 'idempotency-key',
+    in: 'header',
+    description: 'A header for idempotency purposes',
+    required: false,
+    schema: {
+      type: 'string',
+    },
+  };
+
+  const paths = Object.keys(parsedDocument.paths);
+  for (const path of paths) {
+    const operations = parsedDocument.paths[path];
+    const methods = Object.keys(operations);
+    for (const method of methods) {
+      const operation = operations[method];
+
+      if (!operation.parameters) {
+        operation.parameters = [];
+      }
+
+      const hasIdempotencyKey = operation.parameters.some(
+        (param) => param.name === 'Idempotency-Key' && param.in === 'header'
+      );
+      if (!hasIdempotencyKey) {
+        operation.parameters.push(idempotencyKeyHeader);
+      }
+    }
+  }
+
+  return parsedDocument;
 }

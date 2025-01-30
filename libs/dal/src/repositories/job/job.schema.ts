@@ -79,6 +79,9 @@ const jobSchema = new Schema<JobDBModel>(
       digestKey: {
         type: Schema.Types.String,
       },
+      digestValue: {
+        type: Schema.Types.String,
+      },
       type: {
         type: Schema.Types.String,
       },
@@ -381,10 +384,6 @@ jobSchema.index({
  */
 jobSchema.index({
   _notificationId: 1,
-});
-
-jobSchema.index({
-  _environmentId: 1,
 });
 
 jobSchema.index(

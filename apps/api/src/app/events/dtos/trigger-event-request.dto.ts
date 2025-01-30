@@ -1,18 +1,8 @@
-import {
-  ArrayMaxSize,
-  ArrayNotEmpty,
-  IsArray,
-  IsDefined,
-  IsObject,
-  IsOptional,
-  IsString,
-  ValidateIf,
-  ValidateNested,
-} from 'class-validator';
+import { IsDefined, IsObject, IsOptional, IsString, ValidateIf, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiExtraModels, ApiProperty, ApiPropertyOptional, getSchemaPath } from '@nestjs/swagger';
 import {
-  TriggerRecipients,
+  TriggerRecipientsPayload,
   TriggerRecipientsTypeEnum,
   TriggerRecipientSubscriber,
   TriggerTenantContext,
@@ -47,7 +37,10 @@ export class TopicPayloadDto {
   @ApiProperty()
   topicKey: string;
 
-  @ApiProperty({ example: 'Topic', enum: TriggerRecipientsTypeEnum })
+  @ApiProperty({
+    enum: [...Object.values(TriggerRecipientsTypeEnum)],
+    enumName: 'TriggerRecipientsTypeEnum',
+  })
   type: TriggerRecipientsTypeEnum;
 }
 
@@ -110,25 +103,40 @@ export class TriggerEventRequestDto {
 
   @ApiProperty({
     description: 'The recipients list of people who will receive the notification.',
-    type: 'array',
-    items: {
-      oneOf: [
-        {
-          $ref: getSchemaPath(SubscriberPayloadDto),
+    oneOf: [
+      {
+        type: 'array',
+        items: {
+          oneOf: [
+            {
+              $ref: getSchemaPath(SubscriberPayloadDto),
+            },
+            {
+              $ref: getSchemaPath(TopicPayloadDto),
+            },
+            {
+              type: 'string',
+              description: 'Unique identifier of a subscriber in your systems',
+              example: 'SUBSCRIBER_ID',
+            },
+          ],
         },
-        {
-          $ref: getSchemaPath(TopicPayloadDto),
-        },
-        {
-          type: 'string',
-          description: 'Unique identifier of a subscriber in your systems',
-          example: 'SUBSCRIBER_ID',
-        },
-      ],
-    },
+      },
+      {
+        type: 'string',
+        description: 'Unique identifier of a subscriber in your systems',
+        example: 'SUBSCRIBER_ID',
+      },
+      {
+        $ref: getSchemaPath(SubscriberPayloadDto),
+      },
+      {
+        $ref: getSchemaPath(TopicPayloadDto),
+      },
+    ],
   })
   @IsDefined()
-  to: TriggerRecipients;
+  to: TriggerRecipientsPayload;
 
   @ApiPropertyOptional({
     description: 'A unique identifier for this transaction, we will generate a UUID if not provided.',
@@ -144,6 +152,7 @@ export class TriggerEventRequestDto {
       { type: 'string', description: 'Unique identifier of a subscriber in your systems' },
       { $ref: getSchemaPath(SubscriberPayloadDto) },
     ],
+    required: false,
   })
   @IsOptional()
   @ValidateIf((_, value) => typeof value !== 'string')
@@ -158,6 +167,7 @@ export class TriggerEventRequestDto {
       { type: 'string', description: 'Unique identifier of a tenant in your system' },
       { $ref: getSchemaPath(TenantPayloadDto) },
     ],
+    required: false,
   })
   @IsOptional()
   @ValidateIf((_, value) => typeof value !== 'string')
@@ -177,8 +187,5 @@ export class BulkTriggerEventDto {
     isArray: true,
     type: TriggerEventRequestDto,
   })
-  @IsArray()
-  @ArrayNotEmpty()
-  @ArrayMaxSize(100)
   events: TriggerEventRequestDto[];
 }

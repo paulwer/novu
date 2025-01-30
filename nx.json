@@ -26,7 +26,7 @@
     "groups": {
       "apps": {
         "projects": [
-          "@novu/api",
+          "@novu/api-service",
           "@novu/dashboard",
           "@novu/inbound-mail",
           "@novu/web",
@@ -53,6 +53,7 @@
           "@novu/react-native",
           "@novu/nextjs",
           "@novu/node",
+          "@novu/api",
           "@novu/providers",
           "@novu/shared",
           "@novu/stateless"

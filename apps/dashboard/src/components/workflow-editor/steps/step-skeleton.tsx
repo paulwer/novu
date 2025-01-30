@@ -1,15 +1,15 @@
-import React from 'react';
 import { StepTypeEnum } from '@novu/shared';
-import { RiEdit2Line, RiPencilRuler2Line } from 'react-icons/ri';
+import React from 'react';
+import { RiCloseFill, RiEdit2Line, RiPencilRuler2Line } from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
-import { Cross2Icon } from '@radix-ui/react-icons';
 
-import { Skeleton } from '@/components/primitives/skeleton';
+import { Notification5Fill } from '@/components/icons';
 import { Button } from '@/components/primitives/button';
 import { Separator } from '@/components/primitives/separator';
+import { Skeleton } from '@/components/primitives/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/primitives/tabs';
-import { Notification5Fill } from '@/components/icons';
 import { WorkflowOriginEnum } from '@/utils/enums';
+import { CompactButton } from '../../primitives/button-compact';
 
 const SingleLineSkeleton = () => {
   return (
@@ -34,7 +34,7 @@ const STEP_TYPE_TO_SKELETON_CONTENT: Record<StepTypeEnum | string, () => React.J
       <>
         <div className="flex items-center gap-2.5 text-sm font-medium">
           <Notification5Fill className="size-3" />
-          <span>In-app template editor</span>
+          <span>In-App template editor</span>
         </div>
         <div className="flex flex-col gap-1 rounded-xl border border-neutral-100 p-1">
           <div className="flex gap-1">
@@ -85,9 +85,8 @@ export const StepSkeleton = ({
           </TabsList>
         </Tabs>
 
-        <Button
-          variant="ghost"
-          size="xs"
+        <CompactButton
+          icon={RiCloseFill}
           className="size-6"
           onClick={(e) => {
             e.preventDefault();
@@ -95,9 +94,8 @@ export const StepSkeleton = ({
             navigate('../', { relative: 'path' });
           }}
         >
-          <Cross2Icon className="h-4 w-4" />
           <span className="sr-only">Close</span>
-        </Button>
+        </CompactButton>
       </header>
       <Separator />
       <div className="flex h-full w-full flex-col gap-3 px-3 py-3.5">
@@ -109,7 +107,7 @@ export const StepSkeleton = ({
       </div>
       <Separator />
       <footer className="flex justify-end px-3 py-3.5">
-        <Button className="ml-auto" variant="default" disabled>
+        <Button className="ml-auto" variant="primary" disabled>
           Save step
         </Button>
       </footer>

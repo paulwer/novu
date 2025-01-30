@@ -1,67 +1,48 @@
+import { type StepResponseDto, StepTypeEnum, StepUpdateDto, type WorkflowResponseDto } from '@novu/shared';
 import { useCallback, useEffect, useMemo } from 'react';
-import merge from 'lodash.merge';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  type StepDataDto,
-  StepIssuesDto,
-  StepTypeEnum,
-  StepUpdateDto,
-  UpdateWorkflowDto,
-  type WorkflowResponseDto,
-} from '@novu/shared';
 
-import { flattenIssues, updateStepInWorkflow } from '@/components/workflow-editor/step-utils';
-import { InAppTabs } from '@/components/workflow-editor/steps/in-app/in-app-tabs';
-import { buildDefaultValues, buildDefaultValuesOfDataSchema, buildDynamicZodSchema } from '@/utils/schema';
-import { OtherStepTabs } from './other-steps-tabs';
 import { Form } from '@/components/primitives/form/form';
-import { useFormAutosave } from '@/hooks/use-form-autosave';
-import { SaveFormContext } from '@/components/workflow-editor/steps/save-form-context';
+import { getStepDefaultValues } from '@/components/workflow-editor/step-default-values';
+import { flattenIssues, updateStepInWorkflow } from '@/components/workflow-editor/step-utils';
+import { ChatTabs } from '@/components/workflow-editor/steps/chat/chat-tabs';
+import { CommonCustomControlValues } from '@/components/workflow-editor/steps/common/common-custom-control-values';
 import { EmailTabs } from '@/components/workflow-editor/steps/email/email-tabs';
+import { InAppTabs } from '@/components/workflow-editor/steps/in-app/in-app-tabs';
+import { PushTabs } from '@/components/workflow-editor/steps/push/push-tabs';
+import { SaveFormContext } from '@/components/workflow-editor/steps/save-form-context';
+import { SmsTabs } from '@/components/workflow-editor/steps/sms/sms-tabs';
+import { UpdateWorkflowFn } from '@/components/workflow-editor/workflow-provider';
+import { useDataRef } from '@/hooks/use-data-ref';
+import { useFormAutosave } from '@/hooks/use-form-autosave';
 
 const STEP_TYPE_TO_TEMPLATE_FORM: Record<StepTypeEnum, (args: StepEditorProps) => React.JSX.Element | null> = {
   [StepTypeEnum.EMAIL]: EmailTabs,
-  [StepTypeEnum.CHAT]: OtherStepTabs,
+  [StepTypeEnum.CHAT]: ChatTabs,
   [StepTypeEnum.IN_APP]: InAppTabs,
-  [StepTypeEnum.SMS]: OtherStepTabs,
-  [StepTypeEnum.PUSH]: OtherStepTabs,
-  [StepTypeEnum.DIGEST]: () => null,
-  [StepTypeEnum.DELAY]: () => null,
+  [StepTypeEnum.SMS]: SmsTabs,
+  [StepTypeEnum.PUSH]: PushTabs,
+  [StepTypeEnum.DIGEST]: CommonCustomControlValues,
+  [StepTypeEnum.DELAY]: CommonCustomControlValues,
   [StepTypeEnum.TRIGGER]: () => null,
   [StepTypeEnum.CUSTOM]: () => null,
 };
 
-// Use the UI Schema to build the default values if it exists else use the data schema (code-first approach) values
-const calculateDefaultValues = (step: StepDataDto) => {
-  if (Object.keys(step.controls.uiSchema ?? {}).length !== 0) {
-    return merge(buildDefaultValues(step.controls.uiSchema ?? {}), step.controls.values);
-  }
-
-  return merge(buildDefaultValuesOfDataSchema(step.controls.dataSchema ?? {}), step.controls.values);
-};
-
 export type StepEditorProps = {
   workflow: WorkflowResponseDto;
-  step: StepDataDto;
+  step: StepResponseDto;
 };
 
 type ConfigureStepTemplateFormProps = StepEditorProps & {
-  issues?: StepIssuesDto;
-  update: (data: UpdateWorkflowDto) => void;
-  updateStepCache: (step: Partial<StepDataDto>) => void;
+  update: UpdateWorkflowFn;
 };
 
 export const ConfigureStepTemplateForm = (props: ConfigureStepTemplateFormProps) => {
-  const { workflow, step, update, updateStepCache, issues } = props;
-  const schema = useMemo(() => buildDynamicZodSchema(step.controls.dataSchema ?? {}), [step.controls.dataSchema]);
+  const { workflow, step, update } = props;
 
-  const defaultValues = useMemo(() => {
-    return calculateDefaultValues(step);
-  }, [step]);
+  const defaultValues = useMemo(() => getStepDefaultValues(step), [step]);
 
   const form = useForm({
-    resolver: zodResolver(schema),
     defaultValues,
     shouldFocusError: false,
   });
@@ -70,21 +51,38 @@ export const ConfigureStepTemplateForm = (props: ConfigureStepTemplateFormProps)
     previousData: defaultValues,
     form,
     save: (data) => {
-      // transform form fields to step update dto
       const updateStepData: Partial<StepUpdateDto> = {
         controlValues: data,
       };
       update(updateStepInWorkflow(workflow, step.stepId, updateStepData));
-      updateStepCache(updateStepData);
     },
   });
 
+  // Run saveForm on unmount
+  const saveFormRef = useDataRef(saveForm);
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      saveFormRef.current();
+    };
+  }, [saveFormRef]);
+
   const setIssuesFromStep = useCallback(() => {
-    const stepIssues = flattenIssues(issues?.controls);
+    const stepIssues = flattenIssues(step.issues?.controls);
+    const currentErrors = form.formState.errors;
+
+    // Clear errors that are not in stepIssues
+    Object.keys(currentErrors).forEach((key) => {
+      if (!stepIssues[key]) {
+        form.clearErrors(key);
+      }
+    });
+
+    // Set new errors from stepIssues
     Object.entries(stepIssues).forEach(([key, value]) => {
       form.setError(key as string, { message: value });
     });
-  }, [form, issues]);
+  }, [form, step]);
 
   useEffect(() => {
     setIssuesFromStep();
