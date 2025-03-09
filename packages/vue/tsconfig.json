@@ -1,0 +1,17 @@
+{
+  "include": ["src", "src/types/shims-vue.d.ts"],
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "target": "ESNext",
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "Bundler",
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "types": ["vue"]
+  },
+  "exclude": ["src/**/*.test.*", "src/*.test.*", "node_modules", "**/node_modules/*"]
+}
