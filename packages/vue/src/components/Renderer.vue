@@ -11,7 +11,7 @@
 
 <script setup lang="ts">
 import { reactive, provide } from 'vue';
-import { RendererProvider } from '../context/RendererContext';  // Adapt this context for Vue
+import { RendererContextSymbol, RendererContextValue } from '../context/RendererContext';
 
 // Type for the mountedElements map to ensure correct types
 type MountedElementsMap = Map<HTMLElement, any>;
@@ -31,5 +31,5 @@ const mountElement = (el: HTMLElement, mountedElement: any) => {
 };
 
 // Provide the mountElement function to child components
-provide('mountElement', mountElement);
+provide(RendererContextSymbol, { mountElement } as RendererContextValue);
 </script>

@@ -1,16 +1,18 @@
-import { provide, inject, defineComponent, ref } from 'vue';
+import { inject } from 'vue';
 
-// Define types
-export type MountedElement = any;
-export type MountedElements = Map<HTMLElement, MountedElement>;
+// Create context and hook
+export const RendererContextSymbol = Symbol('RendererContext');
 
-type RendererContextValue = {
+// Define type
+export type RendererContextValue = {
   mountElement: (el: HTMLElement, mountedElement: MountedElement) => () => void;
 };
 
-// Create context and hook
-const RendererContextSymbol = Symbol('RendererContext');
+// Define types
+type MountedElement = any;
+type MountedElements = Map<HTMLElement, MountedElement>;
 
+// get the Renderer Context variable
 const useRendererContext = () => {
   const context = inject(RendererContextSymbol);
   if (!context) {
@@ -21,23 +23,7 @@ const useRendererContext = () => {
 };
 
 const useUnsafeRendererContext = () => {
-  return inject(RendererContextSymbol);
+  return inject(RendererContextSymbol) as RendererContextValue | undefined;
 };
 
-// Create RendererProvider component
-const RendererProvider = defineComponent({
-  name: 'RendererProvider',
-  props: {
-    value: {
-      type: Object as () => RendererContextValue,
-      required: true,
-    },
-  },
-  setup(props, { slots }) {
-    provide(RendererContextSymbol, props.value);
-
-    return () => (slots.default ? slots.default() : null);
-  },
-});
-
-export { useRendererContext as useRenderer, useUnsafeRendererContext as useUnsafeRenderer, RendererProvider };
+export { useRendererContext as useRenderer, useUnsafeRendererContext as useUnsafeRenderer };

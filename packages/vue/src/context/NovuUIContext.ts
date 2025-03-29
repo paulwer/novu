@@ -1,41 +1,26 @@
-import { provide, inject, defineComponent } from 'vue';
 import { NovuUI } from '@novu/js/ui';
+import { inject, Ref } from 'vue';
+
+// Create context and hook
+export const NovuUIContextSymbol = Symbol('NovuUI');
 
 // Define types
 export type NovuUIContextValue = {
   novuUI: NovuUI;
 };
 
-// Create context and hook
-const NovuUIContextSymbol = Symbol('NovuUIContext');
-
+// get the UI Context variable
 const useNovuUIContext = () => {
-  const context = inject(NovuUIContextSymbol);
-  if (!context) {
+  const context = inject(NovuUIContextSymbol) as Ref<NovuUI | undefined> | undefined;
+  if (!context?.value) {
     throw new Error('useNovuUIContext must be used within a NovuUIProvider');
   }
 
-  return context as NovuUIContextValue;
+  return context as Ref<NovuUI>;
 };
 
 const useUnsafeNovuUIContext = () => {
-  return inject(NovuUIContextSymbol);
+  return inject(NovuUIContextSymbol) as Ref<NovuUI | undefined>;
 };
 
-// Create NovuUIProvider component
-const NovuUIProvider = defineComponent({
-  name: 'NovuUIProvider',
-  props: {
-    value: {
-      type: Object as () => NovuUIContextValue,
-      required: true,
-    },
-  },
-  setup(props, { slots }) {
-    provide(NovuUIContextSymbol, props.value);
-
-    return () => (slots.default ? slots.default() : null);
-  },
-});
-
-export { useNovuUIContext as useNovuUI, useUnsafeNovuUIContext as useUnsafeNovuUI, NovuUIProvider };
+export { useNovuUIContext as useNovuUI, useUnsafeNovuUIContext as useUnsafeNovuUI };

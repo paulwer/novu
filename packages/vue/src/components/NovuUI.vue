@@ -1,32 +1,23 @@
-<template>
-  <slot />
-</template>
-
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, provide } from 'vue';
-import { NovuUI as NovuUIClass, NovuUIOptions } from '@novu/js/ui';
-import { Novu } from '@novu/js';
-
-interface Props {
-  options: NovuUIOptions;
-  novu?: Novu;
-}
+import { BaseNovuProviderProps, NovuUI } from '@novu/js/ui';
+import { NovuUIContextSymbol } from '../context/NovuUIContext';
 
 // Define props with types
-const props = defineProps<Props>();
+const props = defineProps<BaseNovuProviderProps>();
 
 // Ref to hold the NovuUI instance
-const novuUI = ref<NovuUIClass | undefined>();
+const novuUI = ref<NovuUI | undefined>();
 
 // Initialize the novuUI instance when the component is mounted
 onMounted(() => {
-  const novuInstance = new NovuUIClass(props.options);
+  const novuInstance = new NovuUI(props);
   novuUI.value = novuInstance;
 });
 
 // Watch for changes in options and update the novuUI instance accordingly
 watch(
-  () => props.options,
+  () => props,
   (newOptions) => {
     if (novuUI.value) {
       novuUI.value.updateAppearance(newOptions.appearance);
@@ -47,5 +38,9 @@ onBeforeUnmount(() => {
 });
 
 // Provide the novuUI instance to child components
-provide('novuUI', novuUI);
+provide(NovuUIContextSymbol, novuUI);
 </script>
+
+<template>
+  <slot />
+</template>
