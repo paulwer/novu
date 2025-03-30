@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { ListNotificationsResponse, Notification, NovuError, isSameFilter, NotificationFilter } from '@novu/js';
-import { useNovu } from './NovuProvider';
+import { useNovu } from '../context/NovuProviderContext';
 
 export type UseNotificationsProps = {
   tags?: string[];
@@ -13,7 +13,7 @@ export type UseNotificationsProps = {
 
 export function useNotifications(props?: UseNotificationsProps) {
   const { tags, read, archived = false, limit, onSuccess, onError } = props || {};
-  const { notifications, on } = useNovu();
+  const novu = useNovu();
 
   const data = ref<Notification[] | undefined>(undefined);
   const error = ref<NovuError | undefined>(undefined);
@@ -41,7 +41,7 @@ export function useNotifications(props?: UseNotificationsProps) {
     }
     isFetching.value = true;
 
-    const response = await notifications.list({
+    const response = await novu.value.notifications.list({
       tags,
       read,
       archived,
@@ -63,7 +63,7 @@ export function useNotifications(props?: UseNotificationsProps) {
   };
 
   const refetch = async () => {
-    notifications.clearCache({ filter: { tags, read, archived } });
+    novu.value.notifications.clearCache({ filter: { tags, read, archived } });
     await fetchNotifications({ refetch: true });
   };
 
@@ -72,14 +72,14 @@ export function useNotifications(props?: UseNotificationsProps) {
     await fetchNotifications();
   };
 
-  const readAll = async () => await notifications.readAll({ tags });
+  const readAll = async () => await novu.value.notifications.readAll({ tags });
 
-  const archiveAll = async () => await notifications.archiveAll({ tags });
+  const archiveAll = async () => await novu.value.notifications.archiveAll({ tags });
 
-  const archiveAllRead = async () => await notifications.archiveAllRead({ tags });
+  const archiveAllRead = async () => await novu.value.notifications.archiveAllRead({ tags });
 
   onMounted(() => {
-    const cleanup = on('notifications.list.updated', sync);
+    const cleanup = novu.value.on('notifications.list.updated', sync);
     fetchNotifications();
 
     onUnmounted(() => cleanup());
@@ -89,7 +89,7 @@ export function useNotifications(props?: UseNotificationsProps) {
     const newFilter = { tags, read, archived };
     if (filterRef.value && isSameFilter(filterRef.value, newFilter)) return;
 
-    notifications.clearCache({ filter: filterRef.value });
+    novu.value.notifications.clearCache({ filter: filterRef.value });
     filterRef.value = newFilter;
 
     await fetchNotifications({ refetch: true });

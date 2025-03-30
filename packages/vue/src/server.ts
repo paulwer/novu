@@ -1,4 +1,3 @@
-export * from './utils/types';
 /**
  * Exporting all components from the components folder
  * as empty functions to fix build errors in SSR

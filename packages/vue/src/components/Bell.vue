@@ -2,7 +2,7 @@
 import { useSlots, h } from "vue";
 import { BellRenderer } from "@novu/js/ui";
 import Mounter from "./Mounter.vue"; // Assuming Mounter is a Vue component
-import { useNovuUI } from '../context/NovuUIContext';
+import { useNovuUI } from '../context/NovuUIProviderContext';
 import { useRenderer } from "../context/RendererContext";
 
 interface Slots {

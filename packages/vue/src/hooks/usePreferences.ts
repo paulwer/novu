@@ -1,6 +1,6 @@
-import { ref, onMounted, onUnmounted, watchEffect } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import type { NovuError, Preference } from '@novu/js';
-import { useNovu } from './NovuProvider';
+import { useNovu } from '../context/NovuProviderContext';
 
 type UsePreferencesProps = {
   filter?: { tags?: string[] };
@@ -10,7 +10,7 @@ type UsePreferencesProps = {
 
 export function usePreferences(props?: UsePreferencesProps) {
   const { onSuccess, onError } = props || {};
-  const { preferences, on } = useNovu();
+  const novu = useNovu();
 
   const data = ref<Preference[] | undefined>(undefined);
   const error = ref<NovuError | undefined>(undefined);
@@ -25,7 +25,7 @@ export function usePreferences(props?: UsePreferencesProps) {
 
   const fetchPreferences = async () => {
     isFetching.value = true;
-    const response = await preferences.list(props?.filter);
+    const response = await novu.value.preferences.list(props?.filter);
 
     if (response.error) {
       error.value = response.error;
@@ -40,16 +40,16 @@ export function usePreferences(props?: UsePreferencesProps) {
   };
 
   const refetch = async () => {
-    preferences.cache.clearAll();
+    novu.value.preferences.cache.clearAll();
     await fetchPreferences();
   };
 
   onMounted(() => {
     fetchPreferences();
 
-    const listUpdatedCleanup = on('preferences.list.updated', sync);
-    const listPendingCleanup = on('preferences.list.pending', sync);
-    const listResolvedCleanup = on('preferences.list.resolved', sync);
+    const listUpdatedCleanup = novu.value.on('preferences.list.updated', sync);
+    const listPendingCleanup = novu.value.on('preferences.list.pending', sync);
+    const listResolvedCleanup = novu.value.on('preferences.list.resolved', sync);
 
     onUnmounted(() => {
       listUpdatedCleanup();

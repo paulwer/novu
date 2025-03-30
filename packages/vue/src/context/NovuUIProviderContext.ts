@@ -11,7 +11,7 @@ export type NovuUIContextValue = {
 
 // get the UI Context variable
 const useNovuUIContext = () => {
-  const context = inject(NovuUIContextSymbol) as Ref<NovuUI | undefined> | undefined;
+  const context = inject(NovuUIContextSymbol) as Ref<NovuUI> | undefined;
   if (!context?.value) {
     throw new Error('useNovuUIContext must be used within a NovuUIProvider');
   }
@@ -19,8 +19,8 @@ const useNovuUIContext = () => {
   return context as Ref<NovuUI>;
 };
 
-const useUnsafeNovuUIContext = () => {
-  return inject(NovuUIContextSymbol) as Ref<NovuUI | undefined>;
+const useUnsafeNovuUIContext = (): Ref<NovuUI> | undefined => {
+  return inject(NovuUIContextSymbol) as Ref<NovuUI> | undefined;
 };
 
 export { useNovuUIContext as useNovuUI, useUnsafeNovuUIContext as useUnsafeNovuUI };

@@ -3,7 +3,7 @@
 import { defineProps, useSlots, h } from 'vue';
 import { BellRenderer, InboxProps, NotificationRenderer } from '@novu/js/ui';
 import Mounter from './Mounter.vue';
-import { useNovuUI } from '../context/NovuUIContext';
+import { useNovuUI } from '../context/NovuUIProviderContext';
 import { useRenderer } from "../context/RendererContext";
 
 interface Slots {
@@ -16,13 +16,13 @@ const props = defineProps<Omit<InboxProps, 'rendererBell' | 'rendererNotificatio
 const slots = useSlots() as unknown as Slots; // Get access to the slot content
 
 const novuUI = useNovuUI();
-const { mountElement } = useRenderer();
 
 const mount = (element: HTMLElement) => novuUI.value.mountComponent({
   name: 'Inbox',
   props: {
     ...props,
     renderNotification: (slots.notification ? (el: Parameters<NotificationRenderer>[0], notification: Parameters<NotificationRenderer>[1]) => {
+      const { mountElement } = useRenderer();
       const slotContent = slots.notification?.({ notification });
 
       if (slotContent) {
@@ -31,6 +31,7 @@ const mount = (element: HTMLElement) => novuUI.value.mountComponent({
       }
     } : undefined) as NotificationRenderer | undefined,
     renderBell: (slots.bell ? (el: Parameters<BellRenderer>[0], unreadCount: Parameters<BellRenderer>[1]) => {
+      const { mountElement } = useRenderer();
       const slotContent = slots.bell?.({ unreadCount });
 
       if (slotContent) {

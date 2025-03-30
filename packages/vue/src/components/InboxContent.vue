@@ -3,7 +3,7 @@ import { useSlots, h } from "vue";
 import { useRenderer } from "../context/RendererContext";
 import Mounter from './Mounter.vue';  // Assuming Mounter is a Vue component
 import { InboxPage, NotificationRenderer } from '@novu/js/ui';
-import { useNovuUI } from '../context/NovuUIContext';
+import { useNovuUI } from '../context/NovuUIProviderContext';
 
 interface Slots {
   notification?: (props: { notification: Parameters<NotificationRenderer>[1] }) => any;
@@ -21,13 +21,13 @@ const props = defineProps<Props>();
 const slots = useSlots() as unknown as Slots; // Get access to the slot content
 
 const novuUI = useNovuUI();
-const { mountElement } = useRenderer();
 
 const mount = (element: HTMLElement) => novuUI.value.mountComponent({
   name: 'InboxContent',
   element,
   props: {
     renderNotification: (slots.notification ? (el: Parameters<NotificationRenderer>[0], notification: Parameters<NotificationRenderer>[1]) => {
+      const { mountElement } = useRenderer();
       const slotContent = slots.notification?.({ notification });
 
       if (slotContent) {

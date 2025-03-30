@@ -1,32 +1,31 @@
 <template>
-  <RendererProvider :value="{ mountElement }">
+  <div>
     <template v-for="(mountedElement, element) in mountedElements">
       <teleport :to="element.toString()">
         <component :is="mountedElement" />
       </teleport>
     </template>
     <slot />
-  </RendererProvider>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, provide } from 'vue';
+import { computed, provide, reactive } from 'vue';
 import { RendererContextSymbol, RendererContextValue } from '../context/RendererContext';
 
-// Type for the mountedElements map to ensure correct types
-type MountedElementsMap = Map<HTMLElement, any>;
+// Define types
+type MountedElement = any;
+type MountedElements = Map<HTMLElement, MountedElement>;
 
-// Declare a reactive map to hold the mounted elements
-const mountedElements = reactive<MountedElementsMap>(new Map());
+// Shared reactive state
+const mountedElements = reactive<MountedElements>(new Map());
+const mountedElementsComputed = computed(() => mountedElements);
 
-// Mount element function with type annotations
-const mountElement = (el: HTMLElement, mountedElement: any) => {
-  // Add the mounted element to the map
-  mountedElements.set(el, mountedElement);
+const mountElement = (el: HTMLElement, mountedElement: MountedElement) => {
+  mountedElementsComputed.value.set(el, mountedElement);
 
-  // Cleanup function that deletes the element from the map
   return () => {
-    mountedElements.delete(el);
+    mountedElementsComputed.value.delete(el);
   };
 };
 

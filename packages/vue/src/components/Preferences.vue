@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useNovuUI } from '../context/NovuUIContext';
+import { useNovuUI } from '../context/NovuUIProviderContext';
 import Mounter from './Mounter.vue';  // Assuming Mounter is a Vue component
 
 // Initialize the context

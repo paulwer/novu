@@ -2,7 +2,7 @@
 import Mounter from "./Mounter.vue"; // Assuming Mounter is a Vue component
 import { useSlots, h } from "vue";
 import { NotificationRenderer } from "@novu/js/ui";
-import { useNovuUI } from '../context/NovuUIContext';
+import { useNovuUI } from '../context/NovuUIProviderContext';
 import { useRenderer } from "../context/RendererContext";
 
 interface Slots {

@@ -1,4 +1,4 @@
-import { inject } from 'vue';
+import { inject, reactive } from 'vue';
 
 // Create context and hook
 export const RendererContextSymbol = Symbol('RendererContext');

@@ -1,6 +1,6 @@
 import { type Events, type SocketEventNames, type EventHandler } from '@novu/js';
-import { onMounted, onUnmounted, ref, watchEffect } from 'vue';
-import { useNovu } from '../NovuProvider';
+import { onMounted, onUnmounted, ref } from 'vue';
+import { useNovu } from '../../context/NovuProviderContext';
 import { requestLock } from '../../utils/requestLock';
 import { useBrowserTabsChannel } from './useBrowserTabsChannel';
 
@@ -17,7 +17,7 @@ export function useWebSocketEvent<E extends SocketEventNames>(event: E, eventHan
 
   onMounted(() => {
     const resolveLock = requestLock(`nv.${event}`, () => {
-      cleanup.value = novu.on(event, updateReadCount);
+      cleanup.value = novu.value.on(event, updateReadCount);
     });
 
     onUnmounted(() => {

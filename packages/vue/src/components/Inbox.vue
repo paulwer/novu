@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import NovuUI from './NovuUI.vue';
 import DefaultInbox from './DefaultInbox.vue';
-import { NovuProvider, useUnsafeNovu } from '../hooks/NovuProvider';
 import { BaseNovuProviderProps, InboxProps } from '@novu/js/ui';
 import { NovuOptions } from '@novu/js';
+import NovuProvider from './NovuProvider.vue';
+import { useUnsafeNovu } from '../context/NovuProviderContext';
+import NovuUIProvider from './NovuUIProvider.vue';
 
-const props = defineProps<Omit<NovuOptions & BaseNovuProviderProps & InboxProps, 'rendererBell' | 'rendererNotification'>>();
+const props = defineProps<Omit<NovuOptions & Omit<BaseNovuProviderProps, 'options'> & InboxProps, 'rendererBell' | 'rendererNotification'>>();
 
 const novu = useUnsafeNovu();
 </script>
@@ -14,12 +15,14 @@ const novu = useUnsafeNovu();
   <NovuProvider v-if="!novu" :application-identifier="props.applicationIdentifier" :subscriber-id="props.subscriberId"
     :subscriber-hash="props.subscriberHash" :backend-url="props.backendUrl" :socket-url="props.socketUrl"
     user-agent-type="components">
-    <NovuUI v-bind="$props">
+    <NovuUIProvider :appearance="props.appearance" :localization="props.localization" :options="props"
+      :tabs="props.tabs" :preferences-filter="props.preferencesFilter" :router-push="props.routerPush">
       <DefaultInbox v-bind="{ ...$props, ...$slots }" />
-    </NovuUI>
+    </NovuUIProvider>
   </NovuProvider>
 
-  <NovuUI v-else v-bind="$props">
+  <NovuUIProvider :appearance="props.appearance" :localization="props.localization" :options="props" :tabs="props.tabs"
+    :preferences-filter="props.preferencesFilter" :router-push="props.routerPush">
     <DefaultInbox v-bind="{ ...$props, ...$slots }" />
-  </NovuUI>
+  </NovuUIProvider>
 </template>

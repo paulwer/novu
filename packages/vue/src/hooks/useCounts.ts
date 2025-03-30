@@ -1,7 +1,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { Notification, NotificationFilter, NovuError, areTagsEqual } from '@novu/js';
-import { useNovu } from './NovuProvider';
 import { useWebSocketEvent } from './internal/useWebsocketEvent';
+import { useNovu } from '../context/NovuProviderContext';
 
 type Count = {
   count: number;
@@ -16,7 +16,7 @@ type UseCountsProps = {
 
 export function useCounts(props: UseCountsProps) {
   const { filters, onSuccess, onError } = props;
-  const { notifications } = useNovu();
+  const novu = useNovu();
 
   const counts = ref<Count[] | undefined>(undefined);
   const error = ref<NovuError | undefined>(undefined);
@@ -36,7 +36,7 @@ export function useCounts(props: UseCountsProps) {
     if (countFiltersToFetch.length === 0) return;
 
     isFetching.value = true;
-    const countsRes = await notifications.count({ filters: countFiltersToFetch });
+    const countsRes = await novu.value.notifications.count({ filters: countFiltersToFetch });
     isFetching.value = false;
     isLoading.value = false;
 
