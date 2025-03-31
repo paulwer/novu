@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, provide } from 'vue';
+import { ref, onBeforeUnmount, watch, provide } from 'vue';
 import { BaseNovuProviderProps, NovuUI } from '@novu/js/ui';
 import { NovuUIContextSymbol } from '../context/NovuUIProviderContext';
 
@@ -7,7 +7,7 @@ import { NovuUIContextSymbol } from '../context/NovuUIProviderContext';
 const props = defineProps<BaseNovuProviderProps>();
 
 // Ref to hold the NovuUI instance
-const novuUI = ref<NovuUI | undefined>(new NovuUI(props));
+const novuUI = ref<NovuUI>(new NovuUI(props));
 
 // Watch for changes in options and update the novuUI instance accordingly
 watch(

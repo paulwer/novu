@@ -3,7 +3,6 @@ import { useSlots, h } from "vue";
 import { BellRenderer } from "@novu/js/ui";
 import Mounter from "./Mounter.vue"; // Assuming Mounter is a Vue component
 import { useNovuUI } from '../context/NovuUIProviderContext';
-import { useRenderer } from "../context/RendererContext";
 
 interface Slots {
   bell?: (props: { unreadCount: Parameters<BellRenderer>[1] }) => any;
@@ -12,9 +11,8 @@ interface Slots {
 const slots = useSlots() as unknown as Slots; // Get access to the slot content
 
 const novuUI = useNovuUI();
-const { mountElement } = useRenderer();
 
-const mount = (element: HTMLElement) => novuUI.value.mountComponent({
+const mount = (element: HTMLElement, mountElement: (el: HTMLElement, mountedElement: any) => void) => novuUI.value.mountComponent({
   name: "Bell",
   element,
   props: {

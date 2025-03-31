@@ -3,7 +3,6 @@ import Mounter from "./Mounter.vue"; // Assuming Mounter is a Vue component
 import { useSlots, h } from "vue";
 import { NotificationRenderer } from "@novu/js/ui";
 import { useNovuUI } from '../context/NovuUIProviderContext';
-import { useRenderer } from "../context/RendererContext";
 
 interface Slots {
   notification?: (props: { notification: Parameters<NotificationRenderer>[1] }) => any;
@@ -19,9 +18,8 @@ const props = defineProps<Props>();
 const slots = useSlots() as unknown as Slots; // Get access to the slot content
 
 const novuUI = useNovuUI();
-const { mountElement } = useRenderer();
 
-const mount = (element: HTMLElement) => novuUI.value.mountComponent({
+const mount = (element: HTMLElement, mountElement: (el: HTMLElement, mountedElement: any) => void) => novuUI.value.mountComponent({
   name: "Notifications",
   element,
   props: {
