@@ -11,8 +11,8 @@ import {
   RiProgress1Line,
 } from 'react-icons/ri';
 import { Toaster as Sonner } from 'sonner';
-import { Button } from './button';
 import { cn } from '@/utils/ui';
+import { CompactButton } from './button-compact';
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
@@ -75,9 +75,14 @@ const ToastIcon = ({ className, variant = 'default', ...props }: ToastIconProps)
 
 const ToastClose = ({ className, ...props }: React.HTMLAttributes<HTMLButtonElement>) => {
   return (
-    <Button variant="ghost" className={cn('h-min w-min rounded-sm p-0', className)} {...props}>
-      <RiCloseLine className="fill-foreground-400 size-5" />
-    </Button>
+    <CompactButton
+      icon={RiCloseLine}
+      variant="ghost"
+      className={cn('h-min w-min rounded-sm p-0', className)}
+      {...props}
+    >
+      <span className="sr-only">Close</span>
+    </CompactButton>
   );
 };
 
@@ -91,8 +96,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast:
-            'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
-          description: 'group-[.toast]:text-muted-foreground',
+            'group toast group-[.toaster]:bg-transparent group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg text-foreground-950',
+          description: 'group-[.toast]:text-foreground-600',
           actionButton: 'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground',
           cancelButton: 'group-[.toast]:bg-muted group-[.toast]:text-muted-foreground',
         },
@@ -105,4 +110,4 @@ const Toaster = ({ ...props }: ToasterProps) => {
   );
 };
 
-export { Toaster, Toast, ToastIcon, ToastClose };
+export { Toast, ToastClose, Toaster, ToastIcon };

@@ -1,15 +1,13 @@
 import http from 'node:http';
-import { AddressInfo } from 'net';
-
 import getPort from 'get-port';
-import { SERVER_HOST } from '../constants';
+import { AddressInfo } from 'net';
 import { DevCommandOptions } from '../commands';
 
 export const WELL_KNOWN_ROUTE = '/.well-known/novu';
 export const STUDIO_PATH = '/studio';
 
 export type DevServerOptions = { tunnelOrigin: string; anonymousId?: string } & Partial<
-  Pick<DevCommandOptions, 'origin' | 'port' | 'studioPort' | 'dashboardUrl' | 'route'>
+  Pick<DevCommandOptions, 'origin' | 'port' | 'studioPort' | 'studioHost' | 'dashboardUrl' | 'route'>
 >;
 
 export class DevServer {
@@ -19,7 +17,7 @@ export class DevServer {
   constructor(private options: DevServerOptions) {}
 
   public async listen(): Promise<void> {
-    const port = await getPort({ host: SERVER_HOST, port: Number(this.options.studioPort) });
+    const port = await getPort({ host: this.options.studioHost, port: Number(this.options.studioPort) });
     this.server = http.createServer();
     this.server.on('request', async (req, res) => {
       try {
@@ -35,13 +33,12 @@ export class DevServer {
             .end();
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error(e);
       }
     });
 
     await new Promise<void>((resolve) => {
-      this.server.listen(port, SERVER_HOST, () => {
+      this.server.listen(port, this.options.studioHost, () => {
         resolve();
       });
     });
@@ -50,7 +47,7 @@ export class DevServer {
   public getAddress() {
     const response = this.server.address() as AddressInfo;
 
-    return `http://${SERVER_HOST}:${response.port}`;
+    return `http://${this.options.studioHost}:${response.port}`;
   }
 
   public getStudioAddress() {

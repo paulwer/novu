@@ -1,4 +1,4 @@
-import { Schema } from '../../../types/schema.types';
+import type { JsonSchema } from '../../../types/schema.types';
 
 const ABSOLUTE_AND_RELATIVE_URL_REGEX = '^(?!mailto:)(?:(https?):\\/\\/[^\\s/$.?#].[^\\s]*)|^(\\/[^\\s]*)$';
 
@@ -39,7 +39,7 @@ const redirectSchema = {
   },
   required: ['url'],
   additionalProperties: false,
-} as const satisfies Schema;
+} as const satisfies JsonSchema;
 
 const actionSchema = {
   type: 'object',
@@ -49,22 +49,28 @@ const actionSchema = {
   },
   required: ['label'],
   additionalProperties: false,
-} as const satisfies Schema;
+} as const satisfies JsonSchema;
 
 const inAppOutputSchema = {
   type: 'object',
   properties: {
-    subject: { type: 'string' },
-    body: { type: 'string' },
+    subject: {
+      type: 'string',
+      minLength: 1,
+    },
+    body: {
+      type: 'string',
+      minLength: 1,
+    },
     avatar: { type: 'string', format: 'uri' },
     primaryAction: actionSchema,
     secondaryAction: actionSchema,
     data: { type: 'object', additionalProperties: true },
     redirect: redirectSchema,
   },
-  required: ['body'],
+  anyOf: [{ required: ['subject'] }, { required: ['body'] }],
   additionalProperties: false,
-} as const satisfies Schema;
+} as const satisfies JsonSchema;
 
 const inAppResultSchema = {
   type: 'object',
@@ -76,7 +82,7 @@ const inAppResultSchema = {
   },
   required: ['seen', 'read', 'lastSeenDate', 'lastReadDate'],
   additionalProperties: false,
-} as const satisfies Schema;
+} as const satisfies JsonSchema;
 
 export const inAppChannelSchemas = {
   output: inAppOutputSchema,

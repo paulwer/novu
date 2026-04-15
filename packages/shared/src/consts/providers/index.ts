@@ -1,4 +1,4 @@
-export * from './providers';
-export * from './provider.interface';
-export * from './provider.enum';
+export * from './channels';
 export * from './credentials';
+export * from './provider.interface';
+export * from './providers';

@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { NotificationTemplateEntity, NotificationTemplateRepository } from '@novu/dal';
-import { GetNotificationTemplatesCommand } from './get-notification-templates.command';
-import { WorkflowsResponseDto } from '../../dto/workflows.response.dto';
-import { GetActiveIntegrationsStatus } from '../get-active-integrations-status/get-active-integrations-status.usecase';
-import { WorkflowResponse } from '../../dto/workflow-response.dto';
+import { WorkflowResponse } from '../../dtos/workflow-response.dto';
+import { WorkflowsResponseDto } from '../../dtos/workflows.response.dto';
 import { GetActiveIntegrationsStatusCommand } from '../get-active-integrations-status/get-active-integrations-status.command';
+import { GetActiveIntegrationsStatus } from '../get-active-integrations-status/get-active-integrations-status.usecase';
+import { GetNotificationTemplatesCommand } from './get-notification-templates.command';
 
 /**
  * D@deprecated
@@ -24,7 +24,8 @@ export class GetNotificationTemplates {
       command.environmentId,
       command.page * command.limit,
       command.limit,
-      command.query
+      command.query,
+      true
     );
 
     const workflows = await this.updateHasActiveIntegrationFlag(list, command);

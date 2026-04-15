@@ -1,8 +1,11 @@
-import { Schema } from '../../../types/schema.types';
+import type { JsonSchema } from '../../../types/schema.types';
 
 export const digestRegularOutputSchema = {
   type: 'object',
   properties: {
+    type: {
+      enum: ['regular'],
+    },
     amount: { type: 'number' },
     unit: {
       type: 'string',
@@ -23,30 +26,36 @@ export const digestRegularOutputSchema = {
       required: ['amount', 'unit'],
       additionalProperties: false,
     },
+    extendToSchedule: { type: 'boolean' },
   },
   required: ['amount', 'unit'],
   additionalProperties: false,
-} as const satisfies Schema;
+} as const satisfies JsonSchema;
 
 export const digestTimedOutputSchema = {
   type: 'object',
   properties: {
+    type: {
+      enum: ['timed'],
+    },
     cron: { type: 'string' },
     digestKey: {
       type: 'string',
     },
+    extendToSchedule: { type: 'boolean' },
   },
   required: ['cron'],
   additionalProperties: false,
-} as const satisfies Schema;
+} as const satisfies JsonSchema;
 
 export const digestOutputSchema = {
   oneOf: [digestRegularOutputSchema, digestTimedOutputSchema],
-} as const satisfies Schema;
+} as const satisfies JsonSchema;
 
 export const digestResultSchema = {
   type: 'object',
   properties: {
+    eventCount: { type: 'number' },
     events: {
       type: 'array',
       items: {
@@ -63,7 +72,7 @@ export const digestResultSchema = {
   },
   required: ['events'],
   additionalProperties: false,
-} as const satisfies Schema;
+} as const satisfies JsonSchema;
 
 export const digestActionSchemas = {
   output: digestOutputSchema,

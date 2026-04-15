@@ -1,8 +1,12 @@
 import dotenv from 'dotenv';
+
 // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
 dotenv.config();
 // CLI Server
 export const SERVER_HOST = 'localhost';
+
+// Novu Cloud
+export const { NOVU_API_URL, NOVU_SECRET_KEY } = process.env;
 
 // segment analytics
 export const ANALYTICS_ENABLED = process.env.ANALYTICS_ENABLED !== 'false';

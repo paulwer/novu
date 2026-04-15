@@ -1,5 +1,6 @@
 import { DEFAULT_WORKFLOW_PREFERENCES } from '../consts';
-import { ChannelTypeEnum, WorkflowPreferencesPartial, WorkflowPreferences } from '../types';
+import { IPreferenceChannels } from '../entities/subscriber-preference';
+import { ChannelTypeEnum, WorkflowPreference, WorkflowPreferences, WorkflowPreferencesPartial } from '../types';
 
 /**
  * Given any partial input of preferences, output a complete preferences object that:
@@ -8,7 +9,7 @@ import { ChannelTypeEnum, WorkflowPreferencesPartial, WorkflowPreferences } from
  * - Lastly, uses the defaults we've defined
  */
 export const buildWorkflowPreferences = (
-  inputPreferences: WorkflowPreferencesPartial | undefined,
+  inputPreferences: WorkflowPreferencesPartial | undefined | null,
   defaultPreferences: WorkflowPreferences = DEFAULT_WORKFLOW_PREFERENCES
 ): WorkflowPreferences => {
   if (!inputPreferences) {
@@ -24,7 +25,8 @@ export const buildWorkflowPreferences = (
     ...defaultPreferences,
     all: {
       ...defaultPreferences.all,
-      ...inputPreferences.all,
+      // DeepPartial loosens json-logic types; assert back to the concrete workflow preference before merging.
+      ...(inputPreferences.all as WorkflowPreference),
     },
     channels: {
       ...defaultPreferences.channels,
@@ -41,4 +43,27 @@ export const buildWorkflowPreferences = (
       ),
     },
   };
+};
+
+/**
+ * Given a `critical` flag and a `IPreferenceChannels` object, build a `WorkflowPreferences` object
+ *
+ * @deprecated use `buildWorkflowPreferences` instead
+ */
+export const buildWorkflowPreferencesFromPreferenceChannels = (
+  critical: boolean = false,
+  preferenceChannels: IPreferenceChannels = {}
+): WorkflowPreferences => {
+  return buildWorkflowPreferences({
+    all: { enabled: true, readOnly: critical },
+    channels: Object.entries(preferenceChannels).reduce(
+      (output, [channel, value]) => ({
+        ...output,
+        [channel as ChannelTypeEnum]: {
+          enabled: value,
+        },
+      }),
+      {} as WorkflowPreferences['channels']
+    ),
+  });
 };

@@ -1,81 +1,82 @@
+import {
+  ChannelTypeEnum,
+  type JSONSchemaDefinition,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_TAG_ELEMENTS,
+  MAX_TAG_LENGTH,
+  SeverityLevelEnum,
+  VALID_ID_REGEX,
+} from '@novu/shared';
 import * as z from 'zod';
-import type { WorkflowTestDataResponseDto } from '@novu/shared';
-import { StepTypeEnum } from '@/utils/enums';
-import { capitalize } from '@/utils/string';
-
-const enabledSchema = z.object({
-  enabled: z.boolean(),
-});
-
-// Reusable schema for channels
-const channelsSchema = z.object({
-  in_app: enabledSchema,
-  sms: enabledSchema,
-  email: enabledSchema,
-  push: enabledSchema,
-  chat: enabledSchema,
-});
 
 export const workflowSchema = z.object({
-  name: z.string(),
-  workflowId: z.string(),
-  description: z.string().optional(),
-  tags: z.array(z.string()).optional(),
   active: z.boolean().optional(),
-  critical: z.boolean().optional(),
-  steps: z.array(
-    z
-      .object({
-        name: z.string(),
-        type: z.nativeEnum(StepTypeEnum),
-        _id: z.string(),
-        stepId: z.string(),
-      })
-      .passthrough()
-  ),
-  preferences: z.object({
-    /**
-     * TODO: Add user schema
-     */
-    user: z.any().nullable(),
-    default: z.object({
-      all: z.object({
-        enabled: z.boolean(),
-        readOnly: z.boolean(),
-      }),
-      channels: channelsSchema,
-    }),
+  name: z.string().min(1).max(MAX_NAME_LENGTH),
+  workflowId: z.string().regex(/^[a-zA-Z0-9]+(?:[-_.][a-zA-Z0-9]+)*$/, {
+    message: 'workflowId must be a valid slug format (letters, numbers, hyphens, dot and underscores only)',
   }),
+  tags: z
+    .array(z.string().min(0).max(MAX_TAG_LENGTH))
+    .max(MAX_TAG_ELEMENTS, { message: `Tag limit reached. A workflow can have up to ${MAX_TAG_ELEMENTS} tags.` })
+    .refine((tags) => tags?.every((tag) => tag.length <= MAX_TAG_LENGTH), {
+      message: `Tags must be less than ${MAX_TAG_LENGTH} characters`,
+    })
+    .optional()
+    .refine((tags) => new Set(tags).size === tags?.length, {
+      message: 'Duplicate tags are not allowed',
+    }),
+  description: z.string().max(MAX_DESCRIPTION_LENGTH).optional(),
+  isTranslationEnabled: z.boolean().optional(),
 });
 
-export type JSONSchema = WorkflowTestDataResponseDto['to'];
+export const stepSchema = z.object({
+  name: z.string().min(1).max(MAX_NAME_LENGTH),
+  stepId: z.string(),
+});
 
 export const buildDynamicFormSchema = ({
   to,
 }: {
-  to: JSONSchema;
+  to: JSONSchemaDefinition;
 }): z.ZodObject<{
-  to: z.ZodObject<Record<string, z.ZodTypeAny>>;
-  payload: z.ZodEffects<z.ZodString, any, string>;
+  to: z.ZodObject<Record<string, z.ZodType>>;
+  payload: z.ZodType;
 }> => {
   const properties = typeof to === 'object' ? (to.properties ?? {}) : {};
   const requiredFields = typeof to === 'object' ? (to.required ?? []) : [];
-  const keys: Record<string, z.ZodTypeAny> = Object.keys(properties).reduce((acc, key) => {
+  const keys: Record<string, z.ZodType> = Object.keys(properties).reduce((acc, key) => {
     const value = properties[key];
+
     if (typeof value !== 'object') {
       return acc;
     }
 
     const isRequired = requiredFields.includes(key);
-    let zodValue: z.ZodString | z.ZodNumber | z.ZodOptional<z.ZodString | z.ZodNumber>;
+    let zodValue:
+      | z.ZodString
+      | z.ZodNumber
+      | z.ZodOptional<z.ZodString | z.ZodNumber>
+      | z.ZodEmail
+      | z.ZodOptional<z.ZodEmail>;
+
     if (value.type === 'string') {
-      zodValue = z.string().min(1, `${capitalize(key)} is required`);
       if (value.format === 'email') {
-        zodValue = zodValue.email(`${capitalize(key)} must be a valid email`);
+        zodValue = z.email();
+      } else {
+        zodValue = z.string().min(1);
+
+        if (key === 'subscriberId') {
+          zodValue = zodValue.regex(
+            VALID_ID_REGEX,
+            'SubscriberId must be a string of alphanumeric characters, -, _, and . or a valid email address.'
+          );
+        }
       }
     } else {
-      zodValue = z.number().min(1, `${capitalize(key)} is required`);
+      zodValue = z.number().min(1);
     }
+
     if (!isRequired) {
       zodValue = zodValue.optional();
     }
@@ -84,31 +85,44 @@ export const buildDynamicFormSchema = ({
   }, {});
 
   return z.object({
-    to: z
-      .object({
-        ...keys,
-      })
-      .passthrough(),
-    payload: z.string().transform((str, ctx) => {
-      try {
-        return JSON.parse(str);
-      } catch (e) {
-        ctx.addIssue({ code: 'custom', message: 'Invalid payload. Payload needs to be a valid JSON.' });
-        return z.NEVER;
-      }
+    to: z.looseObject({
+      ...keys,
     }),
+    payload: z.string().refine(
+      (str) => {
+        try {
+          JSON.parse(str);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: 'Payload must be valid JSON' }
+    ),
   });
 };
 
 export type TestWorkflowFormType = z.infer<ReturnType<typeof buildDynamicFormSchema>>;
 
-export const makeObjectFromSchema = ({ properties }: { properties: Readonly<Record<string, JSONSchema>> }) => {
-  return Object.keys(properties).reduce((acc, key) => {
-    const value = properties[key];
-    if (typeof value !== 'object') {
-      return acc;
-    }
+const ChannelPreferenceSchema = z.object({
+  enabled: z.boolean().default(true),
+});
 
-    return { ...acc, [key]: value.default };
-  }, {});
-};
+const ChannelsSchema = z.object(
+  Object.fromEntries(Object.values(ChannelTypeEnum).map((channel) => [channel, ChannelPreferenceSchema]))
+);
+
+const WorkflowPreferenceSchema = z.object({
+  enabled: z.boolean().default(true),
+  readOnly: z.boolean().default(false),
+});
+
+const WorkflowPreferencesSchema = z.object({
+  all: WorkflowPreferenceSchema,
+  channels: ChannelsSchema,
+});
+
+export const UserPreferencesFormSchema = z.object({
+  user: WorkflowPreferencesSchema.nullable(),
+  severity: z.enum(Object.values(SeverityLevelEnum) as [string, ...string[]]).default(SeverityLevelEnum.NONE),
+});

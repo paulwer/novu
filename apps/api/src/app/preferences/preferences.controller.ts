@@ -6,32 +6,37 @@ import {
   Get,
   Post,
   Query,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
 import {
+  DeletePreferencesCommand,
+  DeletePreferencesUseCase,
   GetPreferences,
   GetPreferencesCommand,
   UpsertPreferences,
   UpsertUserWorkflowPreferencesCommand,
-  UserAuthGuard,
   UserSession,
 } from '@novu/application-generic';
-import { UserSessionData } from '@novu/shared';
-import { ApiExcludeController } from '@nestjs/swagger';
+import { PreferencesTypeEnum, UserSessionData } from '@novu/shared';
+import { RequireAuthentication } from '../auth/framework/auth.decorator';
 import { UpsertPreferencesDto } from './dtos/upsert-preferences.dto';
 
+/**
+ * @deprecated - set workflow preferences using the `/workflows` endpoint instead
+ */
 @Controller('/preferences')
 @UseInterceptors(ClassSerializerInterceptor)
+@RequireAuthentication()
 @ApiExcludeController()
 export class PreferencesController {
   constructor(
     private upsertPreferences: UpsertPreferences,
-    private getPreferences: GetPreferences
+    private getPreferences: GetPreferences,
+    private deletePreferences: DeletePreferencesUseCase
   ) {}
 
   @Get('/')
-  @UseGuards(UserAuthGuard)
   async get(@UserSession() user: UserSessionData, @Query('workflowId') workflowId: string) {
     return this.getPreferences.execute(
       GetPreferencesCommand.create({
@@ -43,7 +48,6 @@ export class PreferencesController {
   }
 
   @Post('/')
-  @UseGuards(UserAuthGuard)
   async upsert(@Body() data: UpsertPreferencesDto, @UserSession() user: UserSessionData) {
     return this.upsertPreferences.upsertUserWorkflowPreferences(
       UpsertUserWorkflowPreferencesCommand.create({
@@ -57,15 +61,14 @@ export class PreferencesController {
   }
 
   @Delete('/')
-  @UseGuards(UserAuthGuard)
   async delete(@UserSession() user: UserSessionData, @Query('workflowId') workflowId: string) {
-    return this.upsertPreferences.upsertUserWorkflowPreferences(
-      UpsertUserWorkflowPreferencesCommand.create({
+    return this.deletePreferences.execute(
+      DeletePreferencesCommand.create({
+        templateId: workflowId,
         environmentId: user.environmentId,
         organizationId: user.organizationId,
         userId: user._id,
-        templateId: workflowId,
-        preferences: null,
+        type: PreferencesTypeEnum.USER_WORKFLOW,
       })
     );
   }

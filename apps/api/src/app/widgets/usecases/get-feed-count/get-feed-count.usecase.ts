@@ -1,10 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { buildMessageCountKey, CachedQuery, InstrumentUsecase } from '@novu/application-generic';
 import { MessageRepository, SubscriberRepository } from '@novu/dal';
 import { ChannelTypeEnum } from '@novu/shared';
-import { buildMessageCountKey, CachedQuery } from '@novu/application-generic';
 
 import { GetFeedCountCommand } from './get-feed-count.command';
-import { ApiException } from '../../../shared/exceptions/api.exception';
 
 @Injectable()
 export class GetFeedCount {
@@ -13,6 +12,7 @@ export class GetFeedCount {
     private subscriberRepository: SubscriberRepository
   ) {}
 
+  @InstrumentUsecase()
   @CachedQuery({
     builder: ({ environmentId, subscriberId, ...command }: GetFeedCountCommand) =>
       buildMessageCountKey().cache({
@@ -29,7 +29,7 @@ export class GetFeedCount {
     );
 
     if (!subscriber) {
-      throw new ApiException(
+      throw new BadRequestException(
         `Subscriber ${command.subscriberId} is not exist in environment ${command.environmentId}, ` +
           `please provide a valid subscriber identifier`
       );

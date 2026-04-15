@@ -1,4 +1,4 @@
-import { getHeader, getQuery, type H3Event, readBody, send, setHeaders, type EventHandlerRequest } from 'h3';
+import { getHeader, getQuery, type H3Event, readBody, send, setHeaders } from 'h3';
 
 import { NovuRequestHandler, type ServeHandlerOptions } from '../handler';
 import { type SupportedFrameworkName } from '../types';
@@ -49,7 +49,7 @@ export const serve = (options: ServeHandlerOptions) => {
   const handler = new NovuRequestHandler({
     frameworkName,
     ...options,
-    handler: (event: H3Event<EventHandlerRequest>) => {
+    handler: (event: H3Event) => {
       return {
         body: () => readBody(event),
         headers: (key) => getHeader(event, key),

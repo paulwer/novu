@@ -1,13 +1,11 @@
-import axios, { AxiosResponse } from 'axios';
 import { Test, TestingModule } from '@nestjs/testing';
+import { CompileTemplate } from '@novu/application-generic';
+import { JobRepository, MessageRepository } from '@novu/dal';
+import axios, { AxiosResponse } from 'axios';
 import { expect } from 'chai';
 import sinon from 'sinon';
-
-import { JobRepository, MessageRepository } from '@novu/dal';
-import { CompileTemplate } from '@novu/application-generic';
-
-import { InboundEmailParse, IUserWebhookPayload } from '../usecases/inbound-email-parse/inbound-email-parse.usecase';
 import { InboundEmailParseCommand } from '../usecases/inbound-email-parse/inbound-email-parse.command';
+import { InboundEmailParse, IUserWebhookPayload } from '../usecases/inbound-email-parse/inbound-email-parse.usecase';
 
 const axiosInstance = axios.create();
 
@@ -176,7 +174,6 @@ const getEntitiesStubObject = {
       organizationName: 'Umbrella Corp',
       compiledVariable: 'test-env',
     },
-    expireAt: '2024-01-16T09:41:20.863Z',
     createdAt: '2023-12-17T09:41:20.863Z',
     updatedAt: '2023-12-17T09:41:20.863Z',
     __v: 0,
@@ -268,7 +265,6 @@ const getEntitiesStubObject = {
     },
     type: 'email',
     providerId: 'sendgrid',
-    expireAt: '2024-01-16T09:41:20.863Z',
     createdAt: '2023-12-17T09:41:20.866Z',
     __v: 0,
     updatedAt: '2023-12-17T09:41:20.978Z',
@@ -301,7 +297,6 @@ const getEntitiesStubObject = {
       organizationName: 'Umbrella Corp',
       compiledVariable: 'test-env',
     },
-    expireAt: '2024-01-16T09:41:20.940Z',
     deleted: false,
     createdAt: '2023-12-17T09:41:20.940Z',
     updatedAt: '2023-12-17T09:41:20.970Z',

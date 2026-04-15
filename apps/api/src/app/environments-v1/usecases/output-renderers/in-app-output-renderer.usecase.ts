@@ -1,75 +1,61 @@
-// Concrete Renderer for In-App Message Preview
-import { InAppRenderOutput, RedirectTargetEnum } from '@novu/shared';
-import { z } from 'zod';
 import { Injectable } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { InstrumentUsecase, PinoLogger, sanitizeHtmlInObject } from '@novu/application-generic';
+import { LocalizationResourceEnum, NotificationTemplateEntity } from '@novu/dal';
+import { InAppRenderOutput } from '@novu/shared';
+import { BaseTranslationRendererUsecase } from './base-translation-renderer.usecase';
 import { RenderCommand } from './render-command';
 
-@Injectable()
-export class InAppOutputRendererUsecase {
-  execute(renderCommand: RenderCommand): InAppRenderOutput {
-    const inApp = InAppRenderOutputSchema.parse(renderCommand.controlValues);
+export class InAppOutputRendererCommand extends RenderCommand {
+  dbWorkflow: NotificationTemplateEntity;
+  locale?: string;
+}
 
+@Injectable()
+export class InAppOutputRendererUsecase extends BaseTranslationRendererUsecase {
+  constructor(
+    protected moduleRef: ModuleRef,
+    protected logger: PinoLogger
+  ) {
+    super(moduleRef, logger);
+  }
+
+  @InstrumentUsecase()
+  async execute(renderCommand: InAppOutputRendererCommand): Promise<InAppRenderOutput> {
+    const { skip, disableOutputSanitization, ...outputControls } = renderCommand.controlValues ?? {};
+    const { _environmentId, _organizationId, _id: workflowId } = renderCommand.dbWorkflow;
+
+    const translatedControls = await this.processTranslations({
+      controls: outputControls,
+      variables: renderCommand.fullPayloadForRender,
+      environmentId: _environmentId,
+      organizationId: _organizationId,
+      resourceId: workflowId,
+      resourceType: LocalizationResourceEnum.WORKFLOW,
+      locale: renderCommand.locale,
+      resourceEntity: renderCommand.dbWorkflow,
+      organization: renderCommand.organization,
+    });
+
+    if (disableOutputSanitization) {
+      return translatedControls as any;
+    }
+
+    const { data, ...restOutputControls } = translatedControls;
+
+    const sanitized = sanitizeHtmlInObject(restOutputControls);
+
+    const { body, subject, ...otherSanitizedControls } = sanitized;
+
+    /**
+     * We need to remove the subject and body from the output if they are empty.
+     * Otherwise, the ajv anyOf validation will fail as it will try to make the minLength validation.
+     */
     return {
-      subject: inApp.subject,
-      body: inApp.body,
-      avatar: inApp.avatar,
-      primaryAction: inApp.primaryAction
-        ? {
-            label: inApp.primaryAction.label,
-            redirect: {
-              url: inApp.primaryAction.redirect.url,
-              target: inApp.primaryAction.redirect.target as RedirectTargetEnum,
-            },
-          }
-        : undefined,
-      secondaryAction: inApp.secondaryAction
-        ? {
-            label: inApp.secondaryAction?.label,
-            redirect: {
-              url: inApp.secondaryAction?.redirect.url,
-              target: inApp.secondaryAction?.redirect.target as RedirectTargetEnum,
-            },
-          }
-        : undefined,
-      redirect: inApp.redirect
-        ? {
-            url: inApp.redirect.url,
-            target: inApp.redirect.target as RedirectTargetEnum,
-          }
-        : undefined,
-      data: inApp.data as Record<string, unknown>,
-    };
+      ...otherSanitizedControls,
+      ...(subject && typeof subject === 'string' && subject.length > 0 ? { subject } : {}),
+      ...(body && typeof body === 'string' && body.length > 0 ? { body } : {}),
+      ...(data ? { data } : {}),
+    } as any;
   }
 }
-const RedirectTargetEnumSchema = z.enum(['_self', '_blank', '_parent', '_top', '_unfencedTop']);
-
-const InAppRenderOutputSchema = z.object({
-  subject: z.string().optional(),
-  body: z.string(),
-  avatar: z.string().optional(),
-  primaryAction: z
-    .object({
-      label: z.string(),
-      redirect: z.object({
-        url: z.string(),
-        target: RedirectTargetEnumSchema.optional(), // Optional target
-      }),
-    })
-    .optional(),
-  secondaryAction: z
-    .object({
-      label: z.string(),
-      redirect: z.object({
-        url: z.string(),
-        target: RedirectTargetEnumSchema.optional(), // Optional target
-      }),
-    })
-    .optional(), // Optional secondary action
-  data: z.record(z.unknown()).optional(), // Optional data
-  redirect: z
-    .object({
-      url: z.string(),
-      target: RedirectTargetEnumSchema.optional(), // Optional target
-    })
-    .optional(),
-});

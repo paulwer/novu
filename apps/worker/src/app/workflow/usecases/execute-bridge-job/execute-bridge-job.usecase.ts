@@ -1,35 +1,48 @@
-import { Injectable, Logger } from '@nestjs/common';
-
+import { Injectable } from '@nestjs/common';
+import {
+  BridgeError,
+  CreateExecutionDetails,
+  CreateExecutionDetailsCommand,
+  DetailEnum,
+  dashboardSanitizeControlValues,
+  EnvironmentCacheData,
+  ExecuteBridgeRequest,
+  ExecuteBridgeRequestCommand,
+  InMemoryLRUCacheService,
+  InMemoryLRUCacheStore,
+  Instrument,
+  InstrumentUsecase,
+  PinoLogger,
+} from '@novu/application-generic';
 import {
   ControlValuesRepository,
-  NotificationTemplateEntity,
   EnvironmentRepository,
-  JobRepository,
-  NotificationTemplateRepository,
-  MessageRepository,
   JobEntity,
+  JobRepository,
+  MessageRepository,
+  NotificationTemplateEntity,
+  NotificationTemplateRepository,
 } from '@novu/dal';
+import {
+  DelayResult,
+  DigestResult,
+  Event,
+  ExecuteOutput,
+  InAppResult,
+  PostActionEnum,
+  State,
+  ThrottleResult,
+} from '@novu/framework/internal';
 import {
   ControlValuesLevelEnum,
   ExecutionDetailsSourceEnum,
   ExecutionDetailsStatusEnum,
   ITriggerPayload,
   JobStatusEnum,
-  WorkflowOriginEnum,
-  WorkflowTypeEnum,
+  ResourceOriginEnum,
+  ResourceTypeEnum,
 } from '@novu/shared';
-import { Event, State, PostActionEnum, ExecuteOutput } from '@novu/framework/internal';
-
-import {
-  CreateExecutionDetails,
-  CreateExecutionDetailsCommand,
-  DetailEnum,
-  ExecuteBridgeRequest,
-  ExecuteBridgeRequestCommand,
-} from '@novu/application-generic';
 import { ExecuteBridgeJobCommand } from './execute-bridge-job.command';
-
-const LOG_CONTEXT = 'ExecuteBridgeJob';
 
 @Injectable()
 export class ExecuteBridgeJob {
@@ -40,9 +53,14 @@ export class ExecuteBridgeJob {
     private environmentRepository: EnvironmentRepository,
     private controlValuesRepository: ControlValuesRepository,
     private createExecutionDetails: CreateExecutionDetails,
-    private executeBridgeRequest: ExecuteBridgeRequest
-  ) {}
+    private executeBridgeRequest: ExecuteBridgeRequest,
+    private logger: PinoLogger,
+    private inMemoryLRUCacheService: InMemoryLRUCacheService
+  ) {
+    this.logger.setContext(this.constructor.name);
+  }
 
+  @InstrumentUsecase()
   async execute(command: ExecuteBridgeJobCommand): Promise<ExecuteOutput | null> {
     const stepId = command.job.step.stepId || command.job.step.uuid;
 
@@ -50,16 +68,23 @@ export class ExecuteBridgeJob {
 
     let workflow: NotificationTemplateEntity | null = null;
     if (isStateful) {
-      workflow = await this.notificationTemplateRepository.findOne(
-        {
-          _id: command.job._templateId,
-          _environmentId: command.environmentId,
-          type: {
-            $in: [WorkflowTypeEnum.ECHO, WorkflowTypeEnum.BRIDGE],
+      if (
+        command.workflow &&
+        (command.workflow.type === ResourceTypeEnum.ECHO || command.workflow.type === ResourceTypeEnum.BRIDGE)
+      ) {
+        workflow = command.workflow;
+      } else {
+        workflow = await this.notificationTemplateRepository.findOne(
+          {
+            _id: command.job._templateId,
+            _environmentId: command.environmentId,
+            type: {
+              $in: [ResourceTypeEnum.ECHO, ResourceTypeEnum.BRIDGE],
+            },
           },
-        },
-        '_id triggers type origin'
-      );
+          '_id triggers type origin'
+        );
+      }
     }
 
     if (!workflow && isStateful) {
@@ -70,93 +95,101 @@ export class ExecuteBridgeJob {
       throw new Error('Step id is not set');
     }
 
-    const environment = await this.environmentRepository.findOne(
-      {
-        _id: command.environmentId,
-        _organizationId: command.organizationId,
-      },
-      'echo apiKeys _id'
-    );
+    const environment = await this.getEnvironment(command.environmentId, command.organizationId);
 
     if (!environment) {
       throw new Error(`Environment id ${command.environmentId} is not found`);
     }
 
-    if (!environment?.echo?.url && isStateful && workflow?.origin === WorkflowOriginEnum.EXTERNAL) {
+    if (!environment?.echo?.url && isStateful && workflow?.origin === ResourceOriginEnum.EXTERNAL) {
       throw new Error(`Bridge URL is not set for environment id: ${environment._id}`);
     }
 
-    const { subscriber, payload: originalPayload } = command.variables || {};
+    const { subscriber, payload: originalPayload, context, env } = command.variables || {};
     const payload = this.normalizePayload(originalPayload);
+    const state = await this.generateState(command);
 
-    const state = await this.generateState(payload, command);
-
-    const variablesStores = isStateful
+    const controlValuesResult = isStateful
       ? await this.findControlValues(command, workflow as NotificationTemplateEntity)
-      : command.job.step.controlVariables;
+      : { controls: command.job.step.controlVariables, stepResolverHash: undefined };
+    const variablesStores = controlValuesResult.controls;
 
     const bridgeEvent: Omit<Event, 'workflowId' | 'stepId' | 'action'> = {
       payload: payload ?? {},
       controls: variablesStores ?? {},
       state,
       subscriber: subscriber ?? {},
+      context: context ?? {},
+      // biome-ignore lint/style/noNonNullAssertion: <explanation> we always have env.type and env.name
+      env: env!,
     };
 
     const workflowId = isStateful
       ? (workflow as NotificationTemplateEntity).triggers[0].identifier
       : command.identifier;
+    const { stepResolverHash } = controlValuesResult;
 
     const bridgeResponse = await this.sendBridgeRequest({
       environmentId: command.environmentId,
+      organizationId: command.organizationId,
       /*
        * TODO: We fallback to external due to lack of backfilling origin for existing Workflows.
        * Once we backfill the origin field for existing Workflows, we should remove the fallback.
        */
-      workflowOrigin: workflow?.origin || WorkflowOriginEnum.EXTERNAL,
+      workflowOrigin: workflow?.origin || ResourceOriginEnum.EXTERNAL,
       statelessBridgeUrl: command.job.step.bridgeUrl,
       event: bridgeEvent,
       job: command.job,
+      stepResolverHash,
       searchParams: {
         workflowId,
         stepId,
+        jobId: command.job._id,
       },
     });
-
-    const createExecutionDetailsCommand: CreateExecutionDetailsCommand = {
-      ...CreateExecutionDetailsCommand.getDetailsFromJob(command.job),
-      detail: DetailEnum.SUCCESSFUL_BRIDGE_RESPONSE_RECEIVED,
-      source: ExecutionDetailsSourceEnum.INTERNAL,
-      status: ExecutionDetailsStatusEnum.PENDING,
-      isTest: false,
-      isRetry: false,
-      raw: JSON.stringify(bridgeResponse.metadata),
-    };
-
-    await this.createExecutionDetails.execute(createExecutionDetailsCommand);
 
     return bridgeResponse;
   }
 
-  private async findControlValues(command: ExecuteBridgeJobCommand, workflow: NotificationTemplateEntity) {
-    const controls = await this.controlValuesRepository.findOne({
+  private async findControlValues(
+    command: ExecuteBridgeJobCommand,
+    workflow: NotificationTemplateEntity
+  ): Promise<{
+    controls: Record<string, unknown>;
+    stepResolverHash?: string;
+  }> {
+    const controlsEntity = await this.controlValuesRepository.findOne({
       _organizationId: command.organizationId,
       _workflowId: workflow._id,
       _stepId: command.job.step._id,
       level: ControlValuesLevelEnum.STEP_CONTROLS,
     });
 
-    return controls?.controls;
+    const rawControls = controlsEntity?.controls;
+    const stepResolverHash = command.job.step.template?.stepResolverHash ?? undefined;
+
+    let sanitizedControls: Record<string, unknown> = {};
+    if (workflow?.origin === ResourceOriginEnum.NOVU_CLOUD && rawControls && !stepResolverHash) {
+      const result = dashboardSanitizeControlValues(this.logger, rawControls, command.job?.step?.template?.type);
+      sanitizedControls = result ?? {};
+    } else {
+      sanitizedControls = rawControls ?? {};
+    }
+
+    return {
+      controls: sanitizedControls,
+      stepResolverHash,
+    };
   }
 
-  private normalizePayload(originalPayload: ITriggerPayload = {}) {
+  private normalizePayload(originalPayload: ITriggerPayload = {}): Omit<ITriggerPayload, '__source'> {
     // Remove internal params
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     const { __source, ...payload } = originalPayload;
 
     return payload;
   }
 
-  private async generateState(payload, command: ExecuteBridgeJobCommand): Promise<State[]> {
+  private async generateState(command: ExecuteBridgeJobCommand): Promise<State[]> {
     const previousJobs: State[] = [];
     let theJob = (await this.jobRepository.findOne({
       _id: command.job._parentId,
@@ -164,7 +197,7 @@ export class ExecuteBridgeJob {
     })) as JobEntity;
 
     if (theJob) {
-      const jobState = await this.mapState(theJob, payload);
+      const jobState = await this.mapState(theJob);
       previousJobs.push(jobState);
     }
 
@@ -175,7 +208,7 @@ export class ExecuteBridgeJob {
       })) as JobEntity;
 
       if (theJob) {
-        const jobState = await this.mapState(theJob, payload);
+        const jobState = await this.mapState(theJob);
         previousJobs.push(jobState);
       }
     }
@@ -183,6 +216,7 @@ export class ExecuteBridgeJob {
     return previousJobs;
   }
 
+  @Instrument()
   private async sendBridgeRequest({
     statelessBridgeUrl,
     event,
@@ -190,113 +224,40 @@ export class ExecuteBridgeJob {
     searchParams,
     workflowOrigin,
     environmentId,
-  }: Omit<ExecuteBridgeRequestCommand, 'afterResponse' | 'action' | 'retriesLimit'> & {
+    organizationId,
+    stepResolverHash,
+  }: Omit<ExecuteBridgeRequestCommand, 'processError' | 'action' | 'retriesLimit'> & {
     job: JobEntity;
   }): Promise<ExecuteOutput> {
-    try {
-      return this.executeBridgeRequest.execute({
-        statelessBridgeUrl,
-        event,
-        action: PostActionEnum.EXECUTE,
-        searchParams,
-        afterResponse: async (response) => {
-          const body = response?.body as string;
-
-          if (response.statusCode >= 400) {
-            let rawMessage: Record<string, unknown>;
-            try {
-              rawMessage = JSON.parse(body);
-            } catch {
-              Logger.error(`Unexpected body received from Bridge: ${body}`, LOG_CONTEXT);
-              rawMessage = {
-                error: `Unexpected body received from Bridge: ${body}`,
-              };
-            }
-            const createExecutionDetailsCommand: CreateExecutionDetailsCommand = {
-              ...CreateExecutionDetailsCommand.getDetailsFromJob(job),
-              detail: DetailEnum.FAILED_BRIDGE_RETRY,
-              source: ExecutionDetailsSourceEnum.INTERNAL,
-              status: ExecutionDetailsStatusEnum.WARNING,
-              isTest: false,
-              isRetry: false,
-              raw: JSON.stringify({
-                url: statelessBridgeUrl,
-                statusCode: response.statusCode,
-                retryCount: response.retryCount,
-                message: response.statusMessage,
-                ...(body && body?.length > 0 ? { raw: rawMessage } : {}),
-              }),
-            };
-
-            await this.createExecutionDetails.execute(createExecutionDetailsCommand);
-          }
-
-          return response;
-        },
-        workflowOrigin,
-        environmentId,
-      }) as Promise<ExecuteOutput>;
-    } catch (error: any) {
-      Logger.error(error, 'Error sending Bridge request:', LOG_CONTEXT);
-
-      let raw: { retryCount?: number; statusCode?: number; message: string; url?: string };
-
-      if (error.response) {
-        let rawMessage: Record<string, unknown>;
-        const errorResponseBody = error?.response?.body;
-        try {
-          rawMessage = JSON.parse(errorResponseBody);
-        } catch {
-          Logger.error(`Unexpected body received from Bridge: ${errorResponseBody}`, LOG_CONTEXT);
-          rawMessage = {
-            error: `Unexpected body received from Bridge: ${errorResponseBody}`,
-          };
-        }
-
-        raw = {
-          url: statelessBridgeUrl,
-          statusCode: error.response?.statusCode,
-          message: error.response?.statusMessage,
-          ...(error.response?.retryCount ? { retryCount: error.response?.retryCount } : {}),
-          ...(error?.response?.body?.length > 0 ? { raw: rawMessage } : {}),
-        };
-      } else if (error.message) {
-        raw = {
-          url: statelessBridgeUrl,
-          message: error.message,
-        };
-      } else {
-        raw = {
-          url: statelessBridgeUrl,
-          message: 'An Unexpected Error Occurred',
-        };
-      }
-
-      const createExecutionDetailsCommand: CreateExecutionDetailsCommand = {
-        ...CreateExecutionDetailsCommand.getDetailsFromJob(job),
-        detail: DetailEnum.FAILED_BRIDGE_EXECUTION,
-        source: ExecutionDetailsSourceEnum.INTERNAL,
-        status: ExecutionDetailsStatusEnum.FAILED,
-        isTest: false,
-        isRetry: false,
-        raw: JSON.stringify(raw),
-      };
-
-      await this.createExecutionDetails.execute(createExecutionDetailsCommand);
-
-      throw error;
-    }
+    return this.executeBridgeRequest.execute({
+      statelessBridgeUrl,
+      event,
+      action: PostActionEnum.EXECUTE,
+      searchParams,
+      workflowOrigin,
+      environmentId,
+      organizationId,
+      stepResolverHash,
+      processError: async (response) => {
+        await this.createExecutionDetails.execute({
+          ...CreateExecutionDetailsCommand.getDetailsFromJob(job),
+          detail: stepResolverHash ? DetailEnum.FAILED_STEP_RESOLVER_EXECUTION : DetailEnum.FAILED_BRIDGE_EXECUTION,
+          source: ExecutionDetailsSourceEnum.INTERNAL,
+          status: ExecutionDetailsStatusEnum.FAILED,
+          isTest: false,
+          isRetry: false,
+          raw: JSON.stringify(buildBridgeErrorRaw(response)),
+        });
+      },
+    }) as Promise<ExecuteOutput>;
   }
 
-  private async mapState(job: JobEntity, payload: Record<string, unknown>) {
-    let output = {};
-
+  private async mapOutput(job: JobEntity) {
     switch (job.type) {
       case 'delay': {
-        output = {
+        return {
           duration: Date.now() - new Date(job.createdAt).getTime(),
-        };
-        break;
+        } satisfies DelayResult;
       }
       case 'digest': {
         const digestJobs = await this.jobRepository.find(
@@ -313,20 +274,22 @@ export class ExecuteBridgeJob {
             transactionId: 1,
           }
         );
-        output = {
-          events: [...digestJobs, job]
-            .map((digestJob) => ({
-              id: digestJob._id,
-              time: digestJob.createdAt,
-              payload: digestJob.payload ?? {},
-            }))
-            .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()),
-        };
-        break;
+        const events = [...digestJobs, job]
+          .map((digestJob) => ({
+            id: digestJob._id,
+            time: digestJob.createdAt,
+            payload: digestJob.payload ?? {},
+          }))
+          .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+        return {
+          events,
+          eventCount: events.length,
+        } satisfies DigestResult;
       }
-      case 'custom': {
-        output = job.stepOutput || {};
-        break;
+      case 'custom':
+      case 'http_request': {
+        return job.stepOutput || {};
       }
       case 'in_app': {
         const message = await this.messageRepository.findOne(
@@ -334,19 +297,49 @@ export class ExecuteBridgeJob {
           'seen read lastSeenDate lastReadDate'
         );
         if (message) {
-          output = {
+          return {
             seen: message.seen,
             read: message.read,
             lastSeenDate: message.lastSeenDate || null,
             lastReadDate: message.lastReadDate || null,
-          };
+          } satisfies InAppResult;
+        } else {
+          /*
+           * Provide fallback state for in-app messages to satisfy framework inAppResultSchema validation
+           * when message is not found (e.g., cancelled jobs, nv-5120)
+           */
+          return {
+            seen: false,
+            read: false,
+            lastSeenDate: null,
+            lastReadDate: null,
+          } satisfies InAppResult;
         }
-        break;
       }
-      default: {
-        break;
+      case 'throttle': {
+        const stepOutput = job.stepOutput as ThrottleResult | undefined;
+
+        if (!stepOutput) {
+          return {
+            throttled: false,
+          } satisfies ThrottleResult;
+        }
+
+        return {
+          throttled: stepOutput.throttled,
+          executionCount: stepOutput.executionCount,
+          threshold: stepOutput.threshold,
+          windowStart: stepOutput.windowStart,
+        } satisfies ThrottleResult;
       }
+      default:
+        return {};
     }
+  }
+
+  @Instrument()
+  private async mapState(job: JobEntity) {
+    const output = await this.mapOutput(job);
 
     return {
       stepId: job?.step.stepId || job?.step.uuid || '',
@@ -357,4 +350,38 @@ export class ExecuteBridgeJob {
       },
     };
   }
+
+  @Instrument()
+  private async getEnvironment(environmentId: string, organizationId: string): Promise<EnvironmentCacheData | null> {
+    return this.inMemoryLRUCacheService.get(
+      InMemoryLRUCacheStore.ENVIRONMENT,
+      `${organizationId}:${environmentId}`,
+      () =>
+        this.environmentRepository.findOne(
+          {
+            _id: environmentId,
+            _organizationId: organizationId,
+          },
+          'echo apiKeys _id'
+        ),
+      {
+        environmentId,
+        organizationId,
+        cacheVariant: '_id:apiKeys:echo',
+      }
+    );
+  }
+}
+
+function buildBridgeErrorRaw(response: BridgeError): Record<string, unknown> {
+  const raw: Record<string, unknown> = {
+    message: response.message,
+    code: response.code,
+  };
+
+  if (response.data !== undefined) {
+    raw.data = response.data;
+  }
+
+  return raw;
 }

@@ -1,18 +1,18 @@
-import { JSONSchema } from 'json-schema-to-ts';
-
+import { JSONSchemaDto } from '../../dto/workflows';
 import type {
   BuilderFieldType,
   BuilderGroupValues,
-  TemplateVariableTypeEnum,
+  CustomDataType,
   FilterParts,
-  WorkflowTypeEnum,
-  NotificationTemplateCustomData,
+  ResourceOriginEnum,
+  ResourceTypeEnum,
 } from '../../types';
-import { IMessageTemplate } from '../message-template';
-import { IPreferenceChannels } from '../subscriber-preference';
-import { IWorkflowStepMetadata } from '../step';
+import { RuntimeIssue } from '../../utils/issues';
+import { ControlSchemas, IMessageTemplate } from '../message-template';
 import { INotificationGroup } from '../notification-group';
-import { ControlsDto } from '../../dto';
+import { INotificationBridgeTrigger, INotificationTrigger } from '../notification-trigger';
+import { IWorkflowStepMetadata } from '../step';
+import { IPreferenceChannels } from '../subscriber-preference';
 
 export interface INotificationTemplate {
   _id?: string;
@@ -32,12 +32,12 @@ export interface INotificationTemplate {
   triggers: INotificationTrigger[];
   isBlueprint?: boolean;
   blueprintId?: string;
-  type?: WorkflowTypeEnum;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type?: ResourceTypeEnum;
   payloadSchema?: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rawData?: any;
-  data?: NotificationTemplateCustomData;
+  data?: CustomDataType;
+  origin?: ResourceOriginEnum;
+  isTranslationEnabled?: boolean;
 }
 
 export class IGroupedBlueprint {
@@ -49,44 +49,16 @@ export interface IBlueprint extends INotificationTemplate {
   notificationGroup: INotificationGroup;
 }
 
-export enum TriggerTypeEnum {
-  EVENT = 'event',
-}
-
-export interface INotificationBridgeTrigger {
-  type: TriggerTypeEnum;
-  identifier: string;
-}
-
-export interface INotificationTrigger {
-  type: TriggerTypeEnum;
-  identifier: string;
-  variables: INotificationTriggerVariable[];
-  subscriberVariables?: INotificationTriggerVariable[];
-  reservedVariables?: ITriggerReservedVariable[];
-}
-
-export enum TriggerContextTypeEnum {
-  TENANT = 'tenant',
-  ACTOR = 'actor',
-}
-
-export interface ITriggerReservedVariable {
-  type: TriggerContextTypeEnum;
-  variables: INotificationTriggerVariable[];
-}
-
-export interface INotificationTriggerVariable {
-  name: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  value?: any;
-  type?: TemplateVariableTypeEnum;
+export class StepIssues {
+  controls?: Record<string, RuntimeIssue[]>;
+  integration?: Record<string, RuntimeIssue[]>;
 }
 
 export interface IStepVariant {
   _id?: string;
   uuid?: string;
   stepId?: string;
+  issues?: StepIssues;
   name?: string;
   filters?: IMessageFilter[];
   _templateId?: string;
@@ -100,16 +72,18 @@ export interface IStepVariant {
   };
   metadata?: IWorkflowStepMetadata;
   inputs?: {
-    schema: JSONSchema;
+    schema: JSONSchemaDto;
   };
-  controls?: {
-    schema: JSONSchema;
-  };
+  /**
+   * @deprecated This property is deprecated and will be removed in future versions.
+   * Use IMessageTemplate.controls
+   */
+  controls?: ControlSchemas;
   /*
    * controlVariables exists
    * only on none production environment in order to provide stateless control variables on fly
    */
-  controlVariables?: ControlsDto;
+  controlVariables?: Record<string, unknown>;
   bridgeUrl?: string;
 }
 

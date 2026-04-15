@@ -1,13 +1,21 @@
 import { EnvironmentWithUserObjectCommand } from '@novu/application-generic';
-import { IdentifierOrInternalId } from '@novu/shared';
-import { IsDefined, IsString } from 'class-validator';
+import { ClientSession } from '@novu/dal';
+import { Exclude } from 'class-transformer';
+import { IsDefined, IsOptional, IsString } from 'class-validator';
 
 export class SyncToEnvironmentCommand extends EnvironmentWithUserObjectCommand {
   @IsString()
   @IsDefined()
-  identifierOrInternalId: IdentifierOrInternalId;
+  workflowIdOrInternalId: string;
 
   @IsString()
   @IsDefined()
   targetEnvironmentId: string;
+
+  /**
+   * Exclude session from the command to avoid serializing it in the response
+   */
+  @IsOptional()
+  @Exclude()
+  session?: ClientSession | null;
 }

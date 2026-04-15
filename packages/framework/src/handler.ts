@@ -1,5 +1,3 @@
-import { createHmac } from 'node:crypto';
-
 import { Client } from './client';
 import {
   GetActionEnum,
@@ -22,16 +20,15 @@ import {
   SignatureNotFoundError,
   SigningKeyNotFoundError,
 } from './errors';
-import type { Awaitable, EventTriggerParams, Workflow } from './types';
-import { initApiClient } from './utils';
 import { isPlatformError } from './errors/guard.errors';
+import type { Awaitable, EventTriggerParams, Workflow } from './types';
+import { createHmacSubtle, initApiClient } from './utils';
 
 export type ServeHandlerOptions = {
   client?: Client;
   workflows: Array<Workflow>;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type INovuRequestHandlerOptions<Input extends any[] = any[], Output = any> = ServeHandlerOptions & {
   frameworkName: string;
   client?: Client;
@@ -39,12 +36,9 @@ export type INovuRequestHandlerOptions<Input extends any[] = any[], Output = any
   handler: Handler<Input, Output>;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Handler<Input extends any[] = any[], Output = any> = (...args: Input) => HandlerResponse<Output>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type HandlerResponse<Output = any> = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body: () => Awaitable<any>;
   headers: (key: string) => Awaitable<string | null | undefined>;
   method: () => Awaitable<string>;
@@ -59,7 +53,6 @@ export type IActionResponse<TBody extends string = string> = {
   body: TBody;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
   public readonly frameworkName: string;
 
@@ -68,11 +61,12 @@ export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
   public readonly client: Client;
   private readonly hmacEnabled: boolean;
   private readonly http;
+  private readonly workflows: Array<Workflow>;
 
   constructor(options: INovuRequestHandlerOptions<Input, Output>) {
     this.handler = options.handler;
     this.client = options.client ? options.client : new Client();
-    this.client.addWorkflows(options.workflows);
+    this.workflows = options.workflows;
     this.http = initApiClient(this.client.secretKey, this.client.apiUrl);
     this.frameworkName = options.frameworkName;
     this.hmacEnabled = this.client.strictAuthentication;
@@ -80,6 +74,7 @@ export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
 
   public createHandler(): (...args: Input) => Promise<Output> {
     return async (...args: Input) => {
+      await this.client.addWorkflows(this.workflows);
       const actions = await this.handler(...args);
       const actionResponse = await this.handleAction({
         actions,
@@ -95,6 +90,7 @@ export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
     return {
       [HttpHeaderKeysEnum.CONTENT_TYPE]: 'application/json',
       [HttpHeaderKeysEnum.ACCESS_CONTROL_ALLOW_ORIGIN]: '*',
+      [HttpHeaderKeysEnum.ACCESS_CONTROL_ALLOW_PRIVATE_NETWORK]: 'true',
       [HttpHeaderKeysEnum.ACCESS_CONTROL_ALLOW_METHODS]: 'GET, POST',
       [HttpHeaderKeysEnum.ACCESS_CONTROL_ALLOW_HEADERS]: '*',
       [HttpHeaderKeysEnum.ACCESS_CONTROL_MAX_AGE]: '604800',
@@ -146,7 +142,7 @@ export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
 
     try {
       if (action !== GetActionEnum.HEALTH_CHECK) {
-        this.validateHmac(body, signatureHeader);
+        await this.validateHmac(body, signatureHeader);
       }
 
       const postActionMap = this.getPostActionMap(body, workflowId, stepId, action);
@@ -172,7 +168,6 @@ export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
 
   private getPostActionMap(
     // TODO: add validation for body per action.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     body: any,
     workflowId: string,
     stepId: string,
@@ -214,6 +209,7 @@ export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
         ...(triggerEvent.actor && { actor: triggerEvent.actor }),
         ...(triggerEvent.bridgeUrl && { bridgeUrl: triggerEvent.bridgeUrl }),
         ...(triggerEvent.controls && { controls: triggerEvent.controls }),
+        ...(triggerEvent.context && { context: triggerEvent.context }),
       };
 
       const result = await this.http.post('/events/trigger', requestPayload);
@@ -275,7 +271,6 @@ export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
          * Log bridge server errors to assist the Developer in debugging errors with their integration.
          * This path is reached when the Bridge application throws an error, ensuring they can see the error in their logs.
          */
-        // eslint-disable-next-line no-console
         console.error(error);
       }
 
@@ -284,14 +279,13 @@ export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
       return this.createError(error);
     } else {
       const bridgeError = new BridgeError(error);
-      // eslint-disable-next-line no-console
       console.error(bridgeError);
 
       return this.createError(bridgeError);
     }
   }
 
-  private validateHmac(payload: unknown, hmacHeader: string | null): void {
+  private async validateHmac(payload: unknown, hmacHeader: string | null): Promise<void> {
     if (!this.hmacEnabled) return;
     if (!hmacHeader) {
       throw new SignatureNotFoundError();
@@ -314,16 +308,12 @@ export class NovuRequestHandler<Input extends any[] = any[], Output = any> {
       throw new SignatureExpiredError();
     }
 
-    const localHash = this.hashHmac(this.client.secretKey as string, `${timestampPayload}.${JSON.stringify(payload)}`);
+    const localHash = await createHmacSubtle(this.client.secretKey, `${timestampPayload}.${JSON.stringify(payload)}`);
 
     const isMatching = localHash === signaturePayload;
 
     if (!isMatching) {
       throw new SignatureMismatchError();
     }
-  }
-
-  private hashHmac(secretKey: string, data: string): string {
-    return createHmac('sha256', secretKey).update(data).digest('hex');
   }
 }

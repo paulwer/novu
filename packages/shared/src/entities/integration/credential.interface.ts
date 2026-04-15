@@ -44,4 +44,13 @@ export interface ICredentials {
   externalLink?: string;
   phoneNumberIdentification?: string;
   channelId?: string;
+  apiVersion?: string;
+  appSid?: string;
+  senderId?: string;
+  AppIOBaseUrl?: string;
+  AppIOSubscriptionId?: string;
+  AppIOBearerToken?: string;
+  AppIOOriginalSignature?: string;
+  servicePlanId?: string;
+  tenantId?: string;
 }

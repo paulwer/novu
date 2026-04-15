@@ -1,5 +1,6 @@
-import { ChannelTypeEnum, PreferenceOverrideSourceEnum, PreferencesTypeEnum } from '../../types';
-import { INotificationTrigger } from '../notification-template';
+import { SeverityLevelEnum } from '../../consts';
+import { ChannelTypeEnum, PreferenceOverrideSourceEnum, PreferencesTypeEnum, Schedule } from '../../types';
+import { INotificationTrigger } from '../notification-trigger';
 
 export interface IPreferenceChannels {
   email?: boolean;
@@ -20,26 +21,12 @@ export interface ISubscriberPreferenceResponse {
   type: PreferencesTypeEnum;
 }
 
-export interface ISubscriberWorkflowPreferenceResponse extends IPreferenceResponse {
-  workflow: ITemplateConfiguration;
-  level: PreferenceLevelEnum.TEMPLATE;
-}
-
-export interface IWorkflow extends Omit<ITemplateConfiguration, '_id'> {
-  id: string;
-}
-export interface ISubscriberPreferences {
-  level: PreferenceLevelEnum;
-  workflow?: IWorkflow;
-  enabled: boolean;
-  channels: IPreferenceChannels;
-  overrides?: IPreferenceOverride[];
-}
-
-export interface IPreferenceResponse {
+interface IPreferenceResponse {
   enabled: boolean;
   channels: IPreferenceChannels;
   overrides: IPreferenceOverride[];
+  schedule?: Schedule;
+  updatedAt?: string;
 }
 
 export interface ITemplateConfiguration {
@@ -48,6 +35,9 @@ export interface ITemplateConfiguration {
   critical: boolean;
   tags?: string[];
   triggers: INotificationTrigger[];
+  updatedAt?: string;
+  createdAt?: string;
+  severity?: SeverityLevelEnum;
 }
 
 export enum PreferenceLevelEnum {

@@ -1,2 +1,2 @@
-export * from './update-workflow/update-workflow.usecase';
-export * from './update-workflow/update-workflow.command';
+export * from './get-workflow-by-ids/get-workflow-by-ids.command';
+export * from './get-workflow-by-ids/get-workflow-by-ids.usecase';

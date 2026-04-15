@@ -1,18 +1,70 @@
-import { ApiOptions, HttpClient } from '@novu/client';
+import type { RulesLogic } from 'json-logic-js';
+import type { PreferenceFilter } from '../subscriptions/types';
 import type {
   ActionTypeEnum,
   ChannelPreference,
+  Context,
+  DefaultSchedule,
   InboxNotification,
   NotificationFilter,
   PreferencesResponse,
   Session,
+  Subscriber,
+  SubscriptionPreferenceResponse,
+  SubscriptionResponse,
+  TagsFilter,
+  WeeklySchedule,
+  WorkflowCriticalityEnum,
 } from '../types';
+import { SeverityLevelEnum } from '../types';
+import { HttpClient, HttpClientOptions } from './http-client';
 
-export type InboxServiceOptions = ApiOptions;
+export type InboxServiceOptions = HttpClientOptions;
 
-const NOVU_API_VERSION = '2024-06-26';
 const INBOX_ROUTE = '/inbox';
 const INBOX_NOTIFICATIONS_ROUTE = `${INBOX_ROUTE}/notifications`;
+
+function appendTagsToSearchParams(searchParams: URLSearchParams, tags: TagsFilter | undefined): void {
+  if (tags === undefined) {
+    return;
+  }
+
+  if (Array.isArray(tags)) {
+    if (tags.length === 0) {
+      return;
+    }
+
+    for (const tag of tags) {
+      searchParams.append('tags[]', tag);
+    }
+
+    return;
+  }
+
+  if ('or' in tags) {
+    if (tags.or.length === 0) {
+      return;
+    }
+
+    for (const tag of tags.or) {
+      searchParams.append('tags[]', tag);
+    }
+
+    return;
+  }
+
+  if ('and' in tags) {
+    if (tags.and.length === 0) {
+      return;
+    }
+
+    tags.and.forEach((group, groupIndex) => {
+      for (const tag of group.or) {
+        searchParams.append(`tags[${groupIndex}][]`, tag);
+      }
+    });
+  }
+}
 
 export class InboxService {
   isSessionInitialized = false;
@@ -20,27 +72,33 @@ export class InboxService {
 
   constructor(options: InboxServiceOptions = {}) {
     this.#httpClient = new HttpClient(options);
-    this.#httpClient.updateHeaders({
-      'Novu-API-Version': NOVU_API_VERSION,
-      'Novu-User-Agent': options.userAgent || '@novu/js',
-    });
   }
 
   async initializeSession({
     applicationIdentifier,
-    subscriberId,
     subscriberHash,
+    contextHash,
+    subscriber,
+    defaultSchedule,
+    context,
   }: {
-    applicationIdentifier: string;
-    subscriberId: string;
+    applicationIdentifier?: string;
     subscriberHash?: string;
+    contextHash?: string;
+    subscriber?: Subscriber;
+    defaultSchedule?: DefaultSchedule;
+    context?: Context;
   }): Promise<Session> {
     const response = (await this.#httpClient.post(`${INBOX_ROUTE}/session`, {
       applicationIdentifier,
-      subscriberId,
       subscriberHash,
+      contextHash,
+      subscriber,
+      defaultSchedule,
+      context,
     })) as Session;
     this.#httpClient.setAuthorizationToken(response.token);
+    this.#httpClient.setKeylessHeader(response.applicationIdentifier);
     this.isSessionInitialized = true;
 
     return response;
@@ -53,41 +111,91 @@ export class InboxService {
     offset,
     read,
     tags,
+    snoozed,
+    seen,
+    data,
+    severity,
+    createdGte,
+    createdLte,
   }: {
-    tags?: string[];
+    tags?: TagsFilter;
     read?: boolean;
     archived?: boolean;
+    snoozed?: boolean;
+    seen?: boolean;
     limit?: number;
     after?: string;
     offset?: number;
+    data?: Record<string, unknown>;
+    severity?: SeverityLevelEnum | SeverityLevelEnum[];
+    createdGte?: number;
+    createdLte?: number;
   }): Promise<{ data: InboxNotification[]; hasMore: boolean; filter: NotificationFilter }> {
-    const queryParams = new URLSearchParams(`limit=${limit}`);
+    const searchParams = new URLSearchParams(`limit=${limit}`);
     if (after) {
-      queryParams.append('after', after);
+      searchParams.append('after', after);
     }
     if (offset) {
-      queryParams.append('offset', `${offset}`);
+      searchParams.append('offset', `${offset}`);
     }
-    if (tags) {
-      tags.forEach((tag) => queryParams.append('tags[]', tag));
-    }
+    appendTagsToSearchParams(searchParams, tags);
     if (read !== undefined) {
-      queryParams.append('read', `${read}`);
+      searchParams.append('read', `${read}`);
     }
     if (archived !== undefined) {
-      queryParams.append('archived', `${archived}`);
+      searchParams.append('archived', `${archived}`);
+    }
+    if (snoozed !== undefined) {
+      searchParams.append('snoozed', `${snoozed}`);
+    }
+    if (seen !== undefined) {
+      searchParams.append('seen', `${seen}`);
+    }
+    if (data !== undefined) {
+      searchParams.append('data', JSON.stringify(data));
+    }
+    if (severity && Array.isArray(severity)) {
+      for (const el of severity) {
+        searchParams.append('severity[]', el);
+      }
+    } else if (severity) {
+      searchParams.append('severity', severity);
+    }
+    if (createdGte) {
+      searchParams.append('createdGte', `${createdGte}`);
+    }
+    if (createdLte) {
+      searchParams.append('createdLte', `${createdLte}`);
     }
 
-    return this.#httpClient.getFullResponse(`${INBOX_NOTIFICATIONS_ROUTE}?${queryParams.toString()}`);
+    return this.#httpClient.get(INBOX_NOTIFICATIONS_ROUTE, searchParams, false);
   }
 
-  count({ filters }: { filters: Array<{ tags?: string[]; read?: boolean; archived?: boolean }> }): Promise<{
+  count({
+    filters,
+  }: {
+    filters: Array<{
+      tags?: TagsFilter;
+      read?: boolean;
+      archived?: boolean;
+      snoozed?: boolean;
+      seen?: boolean;
+      data?: Record<string, unknown>;
+      severity?: SeverityLevelEnum | SeverityLevelEnum[];
+    }>;
+  }): Promise<{
     data: Array<{
       count: number;
       filter: NotificationFilter;
     }>;
   }> {
-    return this.#httpClient.getFullResponse(`${INBOX_NOTIFICATIONS_ROUTE}/count?filters=${JSON.stringify(filters)}`);
+    return this.#httpClient.get(
+      `${INBOX_NOTIFICATIONS_ROUTE}/count`,
+      new URLSearchParams({
+        filters: JSON.stringify(filters),
+      }),
+      false
+    );
   }
 
   read(notificationId: string): Promise<InboxNotification> {
@@ -106,16 +214,64 @@ export class InboxService {
     return this.#httpClient.patch(`${INBOX_NOTIFICATIONS_ROUTE}/${notificationId}/unarchive`);
   }
 
-  readAll({ tags }: { tags?: string[] }): Promise<void> {
-    return this.#httpClient.post(`${INBOX_NOTIFICATIONS_ROUTE}/read`, { tags });
+  snooze(notificationId: string, snoozeUntil: string): Promise<InboxNotification> {
+    return this.#httpClient.patch(`${INBOX_NOTIFICATIONS_ROUTE}/${notificationId}/snooze`, { snoozeUntil });
   }
 
-  archiveAll({ tags }: { tags?: string[] }): Promise<void> {
-    return this.#httpClient.post(`${INBOX_NOTIFICATIONS_ROUTE}/archive`, { tags });
+  unsnooze(notificationId: string): Promise<InboxNotification> {
+    return this.#httpClient.patch(`${INBOX_NOTIFICATIONS_ROUTE}/${notificationId}/unsnooze`);
   }
 
-  archiveAllRead({ tags }: { tags?: string[] }): Promise<void> {
-    return this.#httpClient.post(`${INBOX_NOTIFICATIONS_ROUTE}/read-archive`, { tags });
+  readAll({ tags, data }: { tags?: TagsFilter; data?: Record<string, unknown> }): Promise<void> {
+    return this.#httpClient.post(`${INBOX_NOTIFICATIONS_ROUTE}/read`, {
+      tags,
+      data: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  archiveAll({ tags, data }: { tags?: TagsFilter; data?: Record<string, unknown> }): Promise<void> {
+    return this.#httpClient.post(`${INBOX_NOTIFICATIONS_ROUTE}/archive`, {
+      tags,
+      data: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  archiveAllRead({ tags, data }: { tags?: TagsFilter; data?: Record<string, unknown> }): Promise<void> {
+    return this.#httpClient.post(`${INBOX_NOTIFICATIONS_ROUTE}/read-archive`, {
+      tags,
+      data: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  delete(notificationId: string): Promise<void> {
+    return this.#httpClient.delete(`${INBOX_NOTIFICATIONS_ROUTE}/${notificationId}/delete`);
+  }
+
+  deleteAll({ tags, data }: { tags?: TagsFilter; data?: Record<string, unknown> }): Promise<void> {
+    return this.#httpClient.post(`${INBOX_NOTIFICATIONS_ROUTE}/delete`, {
+      tags,
+      data: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  markAsSeen({
+    notificationIds,
+    tags,
+    data,
+  }: {
+    notificationIds?: string[];
+    tags?: TagsFilter;
+    data?: Record<string, unknown>;
+  }): Promise<void> {
+    return this.#httpClient.post(`${INBOX_NOTIFICATIONS_ROUTE}/seen`, {
+      notificationIds,
+      tags,
+      data: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  seen(notificationId: string): Promise<void> {
+    return this.markAsSeen({ notificationIds: [notificationId] });
   }
 
   completeAction({
@@ -142,10 +298,30 @@ export class InboxService {
     });
   }
 
-  fetchPreferences(tags?: string[]): Promise<PreferencesResponse[]> {
+  fetchPreferences({
+    tags,
+    severity,
+    criticality,
+  }: {
+    tags?: string[];
+    severity?: SeverityLevelEnum | SeverityLevelEnum[];
+    criticality: WorkflowCriticalityEnum;
+  }): Promise<PreferencesResponse[]> {
     const queryParams = new URLSearchParams();
     if (tags) {
-      tags.forEach((tag) => queryParams.append('tags[]', tag));
+      for (const tag of tags) {
+        queryParams.append('tags[]', tag);
+      }
+    }
+    if (severity && Array.isArray(severity)) {
+      for (const el of severity) {
+        queryParams.append('severity[]', el);
+      }
+    } else if (severity) {
+      queryParams.append('severity', severity);
+    }
+    if (criticality) {
+      queryParams.append('criticality', criticality);
     }
 
     const query = queryParams.size ? `?${queryParams.toString()}` : '';
@@ -153,17 +329,169 @@ export class InboxService {
     return this.#httpClient.get(`${INBOX_ROUTE}/preferences${query}`);
   }
 
-  updateGlobalPreferences(channelPreferences: ChannelPreference): Promise<PreferencesResponse> {
-    return this.#httpClient.patch(`${INBOX_ROUTE}/preferences`, channelPreferences);
+  bulkUpdatePreferences(
+    preferences: Array<
+      {
+        workflowId: string;
+      } & ChannelPreference
+    >
+  ): Promise<PreferencesResponse[]> {
+    return this.#httpClient.patch(`${INBOX_ROUTE}/preferences/bulk`, { preferences });
+  }
+
+  updateGlobalPreferences(
+    preferences: ChannelPreference & {
+      schedule?: {
+        isEnabled?: boolean;
+        weeklySchedule?: WeeklySchedule;
+      };
+    }
+  ): Promise<PreferencesResponse> {
+    return this.#httpClient.patch(`${INBOX_ROUTE}/preferences`, preferences);
   }
 
   updateWorkflowPreferences({
     workflowId,
-    channelPreferences,
+    channels,
   }: {
     workflowId: string;
-    channelPreferences: ChannelPreference;
+    channels: ChannelPreference;
   }): Promise<PreferencesResponse> {
-    return this.#httpClient.patch(`${INBOX_ROUTE}/preferences/${workflowId}`, channelPreferences);
+    return this.#httpClient.patch(`${INBOX_ROUTE}/preferences/${workflowId}`, channels);
+  }
+
+  fetchGlobalPreferences(): Promise<PreferencesResponse> {
+    return this.#httpClient.get(`${INBOX_ROUTE}/preferences/global`);
+  }
+
+  triggerHelloWorldEvent(): Promise<unknown> {
+    const payload = {
+      name: 'hello-world',
+      to: {
+        subscriberId: 'keyless-subscriber-id',
+      },
+      payload: {
+        subject: 'Novu Keyless Environment',
+        body: "You're using a keyless demo environment. For full access to Novu features and cloud integration, obtain your API key.",
+        primaryActionText: 'Obtain API Key',
+        primaryActionUrl: 'https://go.novu.co/keyless',
+        secondaryActionText: 'Explore Documentation',
+        secondaryActionUrl: 'https://go.novu.co/keyless-docs',
+      },
+    };
+
+    return this.#httpClient.post('/inbox/events', payload);
+  }
+
+  fetchSubscriptions(topicKey: string): Promise<SubscriptionResponse[]> {
+    return this.#httpClient.get(`${INBOX_ROUTE}/topics/${topicKey}/subscriptions`);
+  }
+
+  getSubscription(
+    topicKey: string,
+    identifier?: string,
+    workflowIds?: string[],
+    tags?: string[]
+  ): Promise<SubscriptionResponse | undefined> {
+    const searchParams = new URLSearchParams();
+
+    if (workflowIds?.length)
+      for (const workflowIdentifier of workflowIds) searchParams.append('workflowIds', workflowIdentifier);
+
+    if (tags?.length) for (const tag of tags) searchParams.append('tags', tag);
+
+    const query = searchParams.size ? `?${searchParams.toString()}` : '';
+
+    return this.#httpClient.get(`${INBOX_ROUTE}/topics/${topicKey}/subscriptions/${identifier}${query}`);
+  }
+
+  createSubscription({
+    identifier,
+    name,
+    topicKey,
+    topicName,
+    preferences,
+  }: {
+    identifier?: string;
+    name?: string;
+    topicKey: string;
+    topicName?: string;
+    preferences?: Array<PreferenceFilter>;
+  }): Promise<SubscriptionResponse> {
+    return this.#httpClient.post(`${INBOX_ROUTE}/topics/${topicKey}/subscriptions`, {
+      identifier,
+      name,
+      ...(topicName && { topic: { name: topicName } }),
+      ...(preferences !== undefined && { preferences }),
+    });
+  }
+
+  updateSubscription({
+    topicKey,
+    identifier,
+    name,
+    preferences,
+  }: {
+    topicKey: string;
+    identifier: string;
+    name?: string;
+    preferences?: Array<PreferenceFilter>;
+  }): Promise<SubscriptionResponse> {
+    return this.#httpClient.patch(`${INBOX_ROUTE}/topics/${topicKey}/subscriptions/${identifier}`, {
+      name,
+      ...(preferences !== undefined && { preferences }),
+    });
+  }
+
+  updateSubscriptionPreference({
+    subscriptionIdentifier,
+    workflowId,
+    enabled,
+    condition,
+    email,
+    sms,
+    in_app,
+    chat,
+    push,
+  }: {
+    subscriptionIdentifier: string;
+    workflowId: string;
+    enabled?: boolean;
+    condition?: RulesLogic;
+    email?: boolean;
+    sms?: boolean;
+    in_app?: boolean;
+    chat?: boolean;
+    push?: boolean;
+  }): Promise<SubscriptionPreferenceResponse> {
+    return this.#httpClient.patch(`${INBOX_ROUTE}/subscriptions/${subscriptionIdentifier}/preferences/${workflowId}`, {
+      enabled,
+      condition,
+      email,
+      sms,
+      in_app,
+      chat,
+      push,
+    });
+  }
+
+  bulkUpdateSubscriptionPreferences(
+    preferences: Array<{
+      subscriptionIdentifier: string;
+      workflowId: string;
+      enabled?: boolean;
+      condition?: RulesLogic;
+      email?: boolean;
+      sms?: boolean;
+      in_app?: boolean;
+      chat?: boolean;
+      push?: boolean;
+    }>
+  ): Promise<SubscriptionPreferenceResponse[]> {
+    return this.#httpClient.patch(`${INBOX_ROUTE}/preferences/bulk`, { preferences });
+  }
+
+  deleteSubscription({ topicKey, identifier }: { topicKey: string; identifier: string }): Promise<void> {
+    return this.#httpClient.delete(`${INBOX_ROUTE}/topics/${topicKey}/subscriptions/${identifier}`);
   }
 }

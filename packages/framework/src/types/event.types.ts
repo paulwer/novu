@@ -1,16 +1,12 @@
-import type {
-  ITriggerPayload,
-  TriggerEventStatusEnum,
-  TriggerRecipientsPayload,
-  TriggerRecipientSubscriber,
-} from '@novu/shared';
+import type { ISubscriberPayload, ITriggerPayload, TriggerEventStatusEnum, TriggerRecipientsPayload } from '../shared';
+import { ContextPayload } from './context.types';
 import { ConditionalPartial, PickRequiredKeys } from './util.types';
 
-type EventPayload = ITriggerPayload & {};
+type EventPayload = ITriggerPayload;
 
-type Actor = TriggerRecipientSubscriber & {};
+type Actor = string | ISubscriberPayload;
 
-type Recipients = TriggerRecipientsPayload & {};
+type Recipients = TriggerRecipientsPayload;
 
 export type EventTriggerResult = {
   /**
@@ -36,6 +32,10 @@ export type EventTriggerParams<T_Payload = EventPayload> = {
    * Actor to trigger the workflow from
    */
   actor?: Actor;
+  /**
+   * Context to trigger the workflow with
+   */
+  context?: ContextPayload;
   /**
    * Bridge url to trigger the workflow to
    */

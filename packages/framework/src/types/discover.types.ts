@@ -1,11 +1,11 @@
-import type { WorkflowPreferencesPartial } from '@novu/shared';
 import { ActionStepEnum, ChannelStepEnum } from '../constants';
-import type { JsonSchema, Schema } from './schema.types';
-import type { StepOptions } from './step.types';
-import type { Execute } from './workflow.types';
-import type { Awaitable, Prettify } from './util.types';
+import type { WorkflowPreferencesPartial } from '../shared';
 import type { EventTriggerParams, EventTriggerResult } from './event.types';
 import type { WithPassthrough } from './provider.types';
+import type { JsonSchema, Schema } from './schema.types';
+import type { StepOptions } from './step.types';
+import type { Awaitable, Prettify } from './util.types';
+import type { Execute, SeverityLevelEnum } from './workflow.types';
 
 export type StepType = `${ChannelStepEnum | ActionStepEnum}`;
 
@@ -59,18 +59,44 @@ export type DiscoverWorkflowOutput = {
     schema: JsonSchema;
     unknownSchema: Schema;
   };
+  env: {
+    schema: JsonSchema;
+    unknownSchema: Schema;
+  };
   preferences: WorkflowPreferencesPartial;
   tags: string[];
   name?: string;
   description?: string;
+  severity: SeverityLevelEnum;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Workflow<T_Payload = any> = {
+/**
+ * A workflow resource.
+ *
+ * @property `id` - The unique identifier for the workflow.
+ * @property `trigger` - The function to trigger the workflow.
+ * @property `discover` - The function to discover the workflow definition.
+ */
+export type Workflow<T_Payload = never> = {
+  /**
+   * The unique identifier for the workflow.
+   */
+  id: string;
+  /**
+   * Trigger an event for this workflow with a strongly typed and validated `payload`, derived from the `payloadSchema`.
+   *
+   * @param event - The event to trigger
+   * @returns `EventTriggerResult` - The result of the event trigger
+   */
   trigger: (
     event: Prettify<Omit<EventTriggerParams<T_Payload>, 'workflowId' | 'bridgeUrl' | 'controls'>>
   ) => Promise<EventTriggerResult>;
-  definition: DiscoverWorkflowOutput;
+  /**
+   * Discover the workflow definition.
+   *
+   * @returns `DiscoverWorkflowOutput` - The workflow definition
+   */
+  discover: () => Promise<DiscoverWorkflowOutput>;
 };
 
 export type DiscoverOutput = {

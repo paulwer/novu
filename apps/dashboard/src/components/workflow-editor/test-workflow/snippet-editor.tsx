@@ -1,27 +1,5 @@
-import { Editor } from '@monaco-editor/react';
-import type { SnippetLanguage } from './types';
+import { CodeBlock, Language } from '../../primitives/code-block';
 
-export const SnippetEditor = ({ language, value }: { language: SnippetLanguage; value: string }) => {
-  const editorLanguage = language === 'framework' ? 'typescript' : language;
-
-  return (
-    <Editor
-      defaultLanguage={editorLanguage}
-      language={editorLanguage}
-      className="h-full"
-      options={{
-        minimap: {
-          enabled: false,
-        },
-        // workaround from: https://github.com/microsoft/monaco-editor/issues/2093
-        accessibilitySupport: 'off',
-        renderLineHighlight: 'none',
-        scrollBeyondLastLine: false,
-        fontSize: 14,
-        lineHeight: 20,
-        readOnly: true,
-      }}
-      value={value}
-    />
-  );
+export const SnippetEditor = ({ language, value }: { language: Language; value: string }) => {
+  return <CodeBlock theme="light" className="h-full overflow-auto" language={language} code={value} />;
 };

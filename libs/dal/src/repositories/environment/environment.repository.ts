@@ -1,6 +1,6 @@
 import { EncryptedSecret, IApiRateLimitMaximum } from '@novu/shared';
 import { BaseRepository } from '../base-repository';
-import { IApiKey, EnvironmentEntity, EnvironmentDBModel } from './environment.entity';
+import { EnvironmentDBModel, EnvironmentEntity, IApiKey } from './environment.entity';
 import { Environment } from './environment.schema';
 
 export class EnvironmentRepository extends BaseRepository<EnvironmentDBModel, EnvironmentEntity, object> {
@@ -58,9 +58,10 @@ export class EnvironmentRepository extends BaseRepository<EnvironmentDBModel, En
     );
   }
 
-  // backward compatibility - update the query to { 'apiKeys.hash': hash } once encrypt-api-keys-migration executed
-  async findByApiKey({ key, hash }: { key: string; hash: string }) {
-    return await this.findOne({ $or: [{ 'apiKeys.key': key }, { 'apiKeys.hash': hash }] });
+  async findByApiKey({ hash }: { hash: string }) {
+    return await this.findOne({ 'apiKeys.hash': hash }, '_id _organizationId apiKeys', {
+      readPreference: 'secondaryPreferred',
+    });
   }
 
   async getApiKeys(environmentId: string): Promise<IApiKey[]> {

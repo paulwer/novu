@@ -1,10 +1,7 @@
-import mongoose, { Schema } from 'mongoose';
 import { ExecutionDetailsSourceEnum, ExecutionDetailsStatusEnum } from '@novu/shared';
-
-import { ExecutionDetailsDBModel } from './execution-details.entity';
-
+import mongoose, { Schema } from 'mongoose';
 import { schemaOptions } from '../schema-default.options';
-import { getTTLOptions } from '../../shared';
+import { ExecutionDetailsDBModel } from './execution-details.entity';
 
 const executionDetailsSchema = new Schema<ExecutionDetailsDBModel>(
   {
@@ -66,7 +63,6 @@ const executionDetailsSchema = new Schema<ExecutionDetailsDBModel>(
     webhookStatus: {
       type: Schema.Types.String,
     },
-    expireAt: Schema.Types.Date,
   },
   schemaOptions
 );
@@ -108,11 +104,10 @@ executionDetailsSchema.index({
   _notificationId: 1,
 });
 
-executionDetailsSchema.index({
-  _environmentId: 1,
-});
-
-executionDetailsSchema.index({ expireAt: 1 }, getTTLOptions());
+/*
+ * This index was created to push entries to Online Archive
+ */
+executionDetailsSchema.index({ createdAt: 1 });
 
 export const ExecutionDetails =
   (mongoose.models.ExecutionDetails as mongoose.Model<ExecutionDetailsDBModel>) ||

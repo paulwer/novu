@@ -1,9 +1,12 @@
-import { BuilderFieldType, BuilderGroupValues, ChannelTypeEnum, FilterParts, ICredentials } from '@novu/shared';
-
-import type { EnvironmentId } from '../environment';
-import type { OrganizationId } from '../organization';
+import { ChannelTypeEnum, IConfigurations, ICredentials } from '@novu/shared';
 import { ChangePropsValueType } from '../../types/helpers';
+import type { EnvironmentId } from '../environment';
 import { StepFilter } from '../notification-template';
+import type { OrganizationId } from '../organization';
+
+export type ICredentialsEntity = ICredentials;
+
+export type ConfigConfigurationEntity = IConfigurations;
 
 export class IntegrationEntity {
   _id: string;
@@ -18,6 +21,8 @@ export class IntegrationEntity {
 
   credentials: ICredentialsEntity;
 
+  configurations?: ConfigConfigurationEntity;
+
   active: boolean;
 
   name: string;
@@ -30,16 +35,14 @@ export class IntegrationEntity {
 
   deleted: boolean;
 
-  deletedAt: string;
+  deletedAt?: string;
 
-  deletedBy: string;
+  deletedBy?: string;
 
   conditions?: StepFilter[];
 
-  removeNovuBranding?: boolean;
+  connected?: boolean;
 }
-
-export type ICredentialsEntity = ICredentials;
 
 export type IntegrationDBModel = ChangePropsValueType<IntegrationEntity, '_environmentId' | '_organizationId'>;
 

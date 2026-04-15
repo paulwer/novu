@@ -1,36 +1,29 @@
-import { SoftDeleteModel } from 'mongoose-delete';
-import { FilterQuery } from 'mongoose';
-
-import { EnvironmentId, ISubscribersDefine, OrganizationId } from '@novu/shared';
+import { DirectionEnum, EnvironmentId, ISubscribersDefine, OrganizationId } from '@novu/shared';
+import { DalException } from '../../shared';
+import type { EnforceEnvOrOrgIds } from '../../types';
+import { BaseRepository } from '../base-repository';
+import { BulkCreateSubscriberEntity } from './bulk.create.subscriber.entity';
 import { SubscriberDBModel, SubscriberEntity } from './subscriber.entity';
 import { Subscriber } from './subscriber.schema';
 import { IExternalSubscribersEntity } from './types';
-import { BaseRepository } from '../base-repository';
-import { DalException } from '../../shared';
-import type { EnforceEnvOrOrgIds } from '../../types';
-
-type SubscriberQuery = FilterQuery<SubscriberDBModel> & EnforceEnvOrOrgIds;
-type SubscriberDeleteQuery = Pick<SubscriberQuery, 'subscriberId' | '_environmentId'> & EnforceEnvOrOrgIds;
-type SubscriberDeleteManyQuery = Pick<SubscriberQuery, 'subscriberId' | '_id' | '_environmentId'> & EnforceEnvOrOrgIds;
 
 export class SubscriberRepository extends BaseRepository<SubscriberDBModel, SubscriberEntity, EnforceEnvOrOrgIds> {
-  private subscriber: SoftDeleteModel;
   constructor() {
     super(Subscriber, SubscriberEntity);
-    this.subscriber = Subscriber;
   }
 
   async findBySubscriberId(
     environmentId: string,
     subscriberId: string,
-    secondaryRead = false
+    secondaryRead = false,
+    select?: string
   ): Promise<SubscriberEntity | null> {
     return await this.findOne(
       {
         _environmentId: environmentId,
         subscriberId,
       },
-      undefined,
+      select,
       { readPreference: secondaryRead ? 'secondaryPreferred' : 'primary' }
     );
   }
@@ -39,7 +32,7 @@ export class SubscriberRepository extends BaseRepository<SubscriberDBModel, Subs
     subscribers: ISubscribersDefine[],
     environmentId: EnvironmentId,
     organizationId: OrganizationId
-  ) {
+  ): Promise<BulkCreateSubscriberEntity> {
     const bulkWriteOps = subscribers.map((subscriber) => {
       const { subscriberId, ...rest } = subscriber;
 
@@ -53,6 +46,7 @@ export class SubscriberRepository extends BaseRepository<SubscriberDBModel, Subs
     });
 
     let bulkResponse;
+    let writeErrors: Array<{ err: { index: number; errmsg: string; op?: { subscriberId?: string } } }> = [];
     try {
       bulkResponse = await this.bulkWrite(bulkWriteOps);
     } catch (e: unknown) {
@@ -61,12 +55,19 @@ export class SubscriberRepository extends BaseRepository<SubscriberDBModel, Subs
           throw new DalException(e.message);
         }
         bulkResponse = e.result;
+        writeErrors = e.writeErrors as Array<{
+          err: { index: number; errmsg: string; op?: { subscriberId?: string } };
+        }>;
       } else {
         throw new DalException('An unknown error occurred');
       }
     }
-    const created = bulkResponse.getUpsertedIds();
-    const writeErrors = bulkResponse.getWriteErrors();
+
+    const upsertedIds = bulkResponse.upsertedIds || {};
+    const created = Object.entries(upsertedIds).map(([index, _id]) => ({
+      index: parseInt(index, 10),
+      _id,
+    }));
 
     const indexes: number[] = [];
 
@@ -76,7 +77,7 @@ export class SubscriberRepository extends BaseRepository<SubscriberDBModel, Subs
       return mapToSubscriberObject(subscribers[inserted.index]?.subscriberId);
     });
 
-    let failed = [];
+    let failed: Array<{ message: string; subscriberId?: string }> = [];
     if (writeErrors.length > 0) {
       failed = writeErrors.map((error) => {
         indexes.push(error.err.index);
@@ -115,7 +116,12 @@ export class SubscriberRepository extends BaseRepository<SubscriberDBModel, Subs
     });
   }
 
-  async searchSubscribers(environmentId: string, subscriberIds: string[] = [], emails: string[] = [], search?: string) {
+  async searchSubscribers(
+    environmentId: string,
+    subscriberIds: string[] = [],
+    emails: string[] = [],
+    search?: string
+  ): Promise<string[]> {
     const filters: any = [];
 
     if (emails?.length) {
@@ -148,64 +154,135 @@ export class SubscriberRepository extends BaseRepository<SubscriberDBModel, Subs
       );
     }
 
-    return await this.find(
-      {
-        _environmentId: environmentId,
-        $or: filters,
-      },
-      '_id'
-    );
-  }
-
-  async delete(query: SubscriberDeleteQuery) {
-    const requestQuery: SubscriberDeleteQuery = {
-      _environmentId: query._environmentId,
-      subscriberId: query.subscriberId,
-    };
-
-    const foundSubscriber = await this.findOne(requestQuery);
-
-    if (!foundSubscriber) {
-      throw new DalException(`Could not find subscriber ${query.subscriberId} to delete`);
-    }
-
-    return await this.subscriber.delete(requestQuery);
-  }
-
-  async deleteMany(query: SubscriberDeleteManyQuery) {
-    const requestQuery: SubscriberDeleteManyQuery = {
-      _environmentId: query._environmentId,
-      subscriberId: query.subscriberId,
-    };
-
-    if (query._id) {
-      requestQuery._id = query._id;
-    }
-
-    return await this.subscriber.delete(requestQuery);
-  }
-
-  async findDeleted(query: SubscriberQuery) {
-    const requestQuery: SubscriberQuery = {
-      _environmentId: query._environmentId,
-      subscriberId: query.subscriberId,
-    };
-
-    const res = await this.subscriber.findDeleted(requestQuery);
-
-    return this.mapEntity(res);
+    return (
+      await this.find(
+        {
+          _environmentId: environmentId,
+          $or: filters,
+        },
+        '_id'
+      )
+    ).map((entity) => entity._id);
   }
 
   async estimatedDocumentCount(): Promise<number> {
-    return this.subscriber.estimatedDocumentCount();
+    return this._model.estimatedDocumentCount();
+  }
+
+  async listSubscribers(query: {
+    environmentId: string;
+    organizationId: string;
+    limit: number;
+    sortBy: 'updatedAt' | '_id';
+    sortDirection: DirectionEnum;
+    after?: string;
+    before?: string;
+    email?: string;
+    phone?: string;
+    subscriberId?: string;
+    name?: string;
+    includeCursor?: boolean;
+  }): Promise<{
+    subscribers: SubscriberEntity[];
+    next: string | null;
+    previous: string | null;
+    totalCount: number;
+    totalCountCapped: boolean;
+  }> {
+    if (query.before && query.after) {
+      throw new DalException('Cannot specify both "before" and "after" cursors at the same time.');
+    }
+
+    const id = query.before || query.after;
+    let subscriber: SubscriberEntity | null = null;
+    if (id) {
+      subscriber = await this.findOne({
+        _environmentId: query.environmentId,
+        _organizationId: query.organizationId,
+        _id: id,
+      });
+      if (!subscriber) {
+        return {
+          subscribers: [],
+          next: null,
+          previous: null,
+          totalCount: 0,
+          totalCountCapped: false,
+        };
+      }
+    }
+
+    const after =
+      query.after && subscriber ? { sortBy: subscriber[query.sortBy], paginateField: subscriber._id } : undefined;
+    const before =
+      query.before && subscriber ? { sortBy: subscriber[query.sortBy], paginateField: subscriber._id } : undefined;
+
+    const pagination = await this.findWithCursorBasedPagination({
+      after,
+      before,
+      paginateField: '_id',
+      limit: query.limit,
+      sortDirection: query.sortDirection,
+      sortBy: query.sortBy,
+      includeCursor: query.includeCursor,
+      query: {
+        _environmentId: query.environmentId,
+        _organizationId: query.organizationId,
+        $and: [
+          {
+            ...(query.email && {
+              email: {
+                $regex: regExpEscape(query.email),
+                $options: 'i',
+              },
+            }),
+            ...(query.phone && {
+              phone: {
+                $regex: regExpEscape(query.phone),
+                $options: 'i',
+              },
+            }),
+            ...(query.subscriberId && {
+              subscriberId: query.subscriberId,
+            }),
+            ...(query.name && {
+              $expr: {
+                $regexMatch: {
+                  input: {
+                    $trim: {
+                      input: {
+                        $concat: [{ $ifNull: ['$firstName', ''] }, ' ', { $ifNull: ['$lastName', ''] }],
+                      },
+                    },
+                  },
+                  regex: regExpEscape(query.name),
+                  options: 'i',
+                },
+              },
+            }),
+          },
+        ],
+      },
+    });
+
+    return {
+      subscribers: pagination.data,
+      next: pagination.next,
+      previous: pagination.previous,
+      totalCount: pagination.totalCount,
+      totalCountCapped: pagination.totalCountCapped,
+    };
   }
 }
+
 function mapToSubscriberObject(subscriberId: string) {
   return { subscriberId };
 }
+
 function regExpEscape(literalString: string): string {
   return literalString.replace(/[-[\]{}()*+!<=:?./\\^$|#\s,]/g, '\\$&');
 }
+
 function isErrorWithWriteErrors(e: unknown): e is { writeErrors?: any; message?: string; result?: any } {
   return typeof e === 'object' && e !== null && 'writeErrors' in e;
 }

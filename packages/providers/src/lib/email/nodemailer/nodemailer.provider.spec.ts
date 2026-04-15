@@ -1,12 +1,11 @@
-import { vi, describe, test, expect, afterEach } from 'vitest';
+import { fail } from 'assert';
 
 import nodemailer from 'nodemailer';
 import { ConnectionOptions } from 'tls';
-import { fail } from 'assert';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { NodemailerProvider } from './nodemailer.provider';
 
 const sendMailMock = vi.fn().mockReturnValue(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return {} as any;
 });
 
@@ -56,6 +55,8 @@ describe.skip('NodemailerProvider', () => {
         host: config.host,
         port: config.port,
         secure: config.secure,
+        connectionTimeout: 10000,
+        socketTimeout: 10000,
         auth: undefined,
         dkim: undefined,
         ignoreTls: undefined,
@@ -108,6 +109,8 @@ describe.skip('NodemailerProvider', () => {
         host: mockConfig.host,
         port: mockConfig.port,
         secure: mockConfig.secure,
+        connectionTimeout: 10000,
+        socketTimeout: 10000,
         auth: {
           user: mockConfig.user,
           pass: mockConfig.password,
@@ -195,7 +198,7 @@ describe.skip('NodemailerProvider', () => {
         fail('Should not reach here');
       } catch (error) {
         expect(error.message).toBe(
-          'TLS options is not a valid JSON. Check again the value set for NODEMAILER_TLS_OPTIONS',
+          'TLS options is not a valid JSON. Check again the value set for NODEMAILER_TLS_OPTIONS'
         );
       }
     });

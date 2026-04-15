@@ -1,7 +1,4 @@
-import { expect } from 'chai';
-import axios from 'axios';
-
-import { UserSession } from '@novu/testing';
+import { Novu } from '@novu/api';
 import {
   MessageEntity,
   MessageRepository,
@@ -10,8 +7,12 @@ import {
   SubscriberRepository,
 } from '@novu/dal';
 import { ChannelTypeEnum, MessagesStatusEnum } from '@novu/shared';
+import { UserSession } from '@novu/testing';
+import axios from 'axios';
+import { expect } from 'chai';
+import { initNovuClassSdk } from '../../shared/helpers/e2e/sdk/e2e-sdk.helper';
 
-describe('Mark as Seen - /widgets/messages/mark-as (POST)', async () => {
+describe('Mark as Seen - /widgets/messages/mark-as (POST) #novu-v0', async () => {
   const messageRepository = new MessageRepository();
   const subscriberRepository = new SubscriberRepository();
   let session: UserSession;
@@ -20,12 +21,13 @@ describe('Mark as Seen - /widgets/messages/mark-as (POST)', async () => {
   let subscriberToken: string;
   let subscriber: SubscriberEntity;
   let message: MessageEntity;
-
+  let novuClient: Novu;
   before(async () => {
     session = new UserSession();
     await session.initialize();
     subscriberId = SubscriberRepository.createObjectId();
     template = await session.createTemplate();
+    novuClient = initNovuClassSdk(session);
 
     const { body } = await session.testAgent
       .post('/v1/widgets/session/initialize')
@@ -42,8 +44,8 @@ describe('Mark as Seen - /widgets/messages/mark-as (POST)', async () => {
   });
 
   beforeEach(async () => {
-    await session.triggerEvent(template.triggers[0].identifier, subscriberId);
-    await session.awaitRunningJobs(template._id);
+    await novuClient.trigger({ workflowId: template.triggers[0].identifier, to: subscriberId });
+    await session.waitForJobCompletion(template._id);
 
     message = await getMessage(session, messageRepository, subscriber);
 
@@ -57,7 +59,7 @@ describe('Mark as Seen - /widgets/messages/mark-as (POST)', async () => {
     await pruneMessages(messageRepository);
   });
 
-  it('should change the seen status', async function () {
+  it('should change the seen status', async () => {
     await markAs(subscriberToken, message._id, MessagesStatusEnum.SEEN);
 
     const updatedMessage = await getMessage(session, messageRepository, subscriber);
@@ -68,7 +70,7 @@ describe('Mark as Seen - /widgets/messages/mark-as (POST)', async () => {
     expect(updatedMessage.lastReadDate).to.be.not.ok;
   });
 
-  it('should change the read status', async function () {
+  it('should change the read status', async () => {
     await markAs(subscriberToken, message._id, MessagesStatusEnum.READ);
 
     const updatedMessage = await getMessage(session, messageRepository, subscriber);
@@ -79,7 +81,7 @@ describe('Mark as Seen - /widgets/messages/mark-as (POST)', async () => {
     expect(updatedMessage.lastReadDate).to.be.ok;
   });
 
-  it('should change the seen status to unseen', async function () {
+  it('should change the seen status to unseen', async () => {
     // simulate user seen
     await markAs(subscriberToken, message._id, MessagesStatusEnum.SEEN);
 
@@ -98,7 +100,7 @@ describe('Mark as Seen - /widgets/messages/mark-as (POST)', async () => {
     expect(updatedMessage.lastReadDate).to.be.not.ok;
   });
 
-  it('should change the read status to unread', async function () {
+  it('should change the read status to unread', async () => {
     // simulate user read
     await markAs(subscriberToken, message._id, MessagesStatusEnum.READ);
 
@@ -116,7 +118,7 @@ describe('Mark as Seen - /widgets/messages/mark-as (POST)', async () => {
     expect(updateMessage.lastReadDate).to.be.ok;
   });
 
-  it('should throw exception if messages were not provided', async function () {
+  it('should throw exception if messages were not provided', async () => {
     const failureMessage = 'should not reach here, should throw error';
 
     try {
@@ -197,5 +199,5 @@ async function getSubscriber(
 }
 
 async function pruneMessages(messageRepository) {
-  await messageRepository.deleteMany({});
+  await messageRepository.delete({});
 }

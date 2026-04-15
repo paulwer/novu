@@ -1,96 +1,194 @@
-import { ArgumentsHost, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
-import { Response } from 'express';
-import { CommandValidationException, PinoLogger } from '@novu/application-generic';
 import { randomUUID } from 'node:crypto';
+import { ArgumentsHost, ExceptionFilter, HttpException, HttpStatus, PayloadTooLargeException } from '@nestjs/common';
+import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception';
+import { HttpArgumentsHost } from '@nestjs/common/interfaces';
+import { CommandValidationException, PinoLogger, RequestLogRepository } from '@novu/application-generic';
+import { UserSessionData } from '@novu/shared';
 import { captureException } from '@sentry/node';
+import { Response } from 'express';
 import { ZodError } from 'zod';
+import { RequestWithReqId } from './app/shared/middleware/request-id.middleware';
+import { buildLog } from './app/shared/utils/mappers';
+import { ErrorDto, ValidationErrorDto } from './error-dto';
+
+const ERROR_MSG_500 = `Internal server error, contact support and provide them with the errorId`;
+
+class ValidationPipeError {
+  response: { message: string[] | string };
+}
 
 export class AllExceptionsFilter implements ExceptionFilter {
-  constructor(private readonly logger: PinoLogger) {}
-  catch(exception: unknown, host: ArgumentsHost) {
+  constructor(
+    private readonly logger: PinoLogger,
+    private readonly requestLogRepository: RequestLogRepository
+  ) {}
+  async catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const request = ctx.getRequest<RequestWithReqId>();
+    const errorDto = this.buildErrorResponse(exception, request);
 
-    const { status, message } = this.getResponseMetadata(exception);
-    const responseBody = this.buildResponseBody(status, request, message, exception);
-
-    response.status(status).json(responseBody);
-  }
-
-  private buildResponseBody(
-    status: number,
-    request: Request,
-    message: string | object | Object,
-    exception: unknown
-  ): ErrorDto {
-    const responseBody = this.buildBaseResponseBody(status, request, message);
-    if (status !== HttpStatus.INTERNAL_SERVER_ERROR) {
-      return message instanceof Object ? { ...responseBody, ...message } : responseBody;
+    // TODO: In same cases the statusCode is a string. We should investigate why this is happening.
+    const statusCode = Number(errorDto.statusCode);
+    if (statusCode >= 500) {
+      this.logError(errorDto, exception);
     }
 
-    return this.build500Error(exception, responseBody);
+    // This is for backwards compatibility for clients waiting for the context elements to appear flat
+    const finalResponse = { ...errorDto.ctx, ...errorDto };
+
+    await this.createAnalyticsLog(ctx, request, statusCode, errorDto);
+
+    response.status(statusCode).json(finalResponse);
   }
 
-  private build500Error(
-    exception: unknown,
-    responseBody: {
-      path: string;
-      message: string | object | Object;
-      statusCode: number;
-      timestamp: string;
-    }
+  private async createAnalyticsLog(
+    ctx: HttpArgumentsHost,
+    request: RequestWithReqId,
+    statusCode: number,
+    errorDto: ErrorDto
   ) {
-    const uuid = this.getUuid(exception);
-    this.logger.error(
-      {
-        errorId: uuid,
-        /**
-         * It's important to use `err` as the key, pino (the logger we use) will
-         * log an empty object if the key is not `err`
-         *
-         * @see https://github.com/pinojs/pino/issues/819#issuecomment-611995074
-         */
-        err: exception,
-      },
-      `Unexpected exception thrown`,
-      'Exception'
-    );
+    const shouldRun = await this.shouldRun(ctx);
 
-    return { ...responseBody, errorId: uuid };
+    if (!shouldRun) return;
+
+    const req = ctx.getRequest();
+    const user = req.user as UserSessionData;
+    const basicLog = buildLog(request, statusCode, errorDto, user);
+
+    try {
+      if (basicLog) {
+        this.requestLogRepository.create(basicLog, {
+          organizationId: user?.organizationId,
+          environmentId: user?.environmentId,
+          userId: user?._id,
+        });
+      }
+    } catch (err) {
+      this.logger.warn({ err }, 'Failed to log analytics to ClickHouse after retries');
+    }
   }
 
-  private buildBaseResponseBody(status: number, request: Request, message: string | object | Object) {
+  private async shouldRun(ctx: HttpArgumentsHost): Promise<boolean> {
+    const req = ctx.getRequest();
+
+    // Check if the analytics metadata was set by the guard (AnalyticsLogsGuard)
+    if (req._shouldLogAnalytics !== true) return false;
+
+    const isEnabled = process.env.IS_ANALYTICS_LOGS_ENABLED === 'true';
+
+    return isEnabled;
+  }
+
+  private logError(errorDto: ErrorDto, exception: unknown) {
+    this.logger.error({
+      /**
+       * It's important to use `err` as the key, pino (the logger we use) will
+       * log an empty object if the key is not `err`
+       *
+       * @see https://github.com/pinojs/pino/issues/819#issuecomment-611995074
+       */
+      err: exception,
+      error: errorDto,
+    });
+  }
+
+  private buildErrorDto(
+    request: RequestWithReqId,
+    statusCode: number,
+    message: string,
+    ctx?: Object | object
+  ): ErrorDto {
     return {
-      statusCode: status,
+      statusCode,
       timestamp: new Date().toISOString(),
       path: request.url,
       message,
+      ctx,
     };
   }
 
-  private getResponseMetadata(exception: unknown): { status: number; message: string | object | Object } {
-    let status: number;
-    let message: string | object;
+  private buildErrorResponse(exception: unknown, request: RequestWithReqId): ErrorDto {
+    if (exception instanceof HttpException && exception.name === 'ThrottlerException') {
+      return this.handlerThrottlerException(request);
+    }
 
     if (exception instanceof ZodError) {
-      return handleZod(exception);
+      return this.handleZod(exception, request);
     }
     if (exception instanceof CommandValidationException) {
-      return handleCommandValidation(exception);
+      return this.handleCommandValidation(exception, request);
+    }
+    if (this.isBadRequestWithMultipleExceptions(exception)) {
+      return this.handleValidationPipeValidation(exception, request);
     }
 
-    if (exception instanceof HttpException) {
-      status = exception.getStatus();
-      message = exception.getResponse();
-
-      return { status, message };
+    if (exception instanceof HttpException && !(exception instanceof InternalServerErrorException)) {
+      return this.handleOtherHttpExceptions(exception, request);
     }
+
+    if (this.isPayloadTooLargeError(exception)) {
+      return this.handleOtherHttpExceptions(new PayloadTooLargeException(), request);
+    }
+
+    return this.buildA5xxError(request, exception);
+  }
+
+  private isPayloadTooLargeError(exception: unknown) {
+    return exception?.constructor?.name === 'PayloadTooLargeError';
+  }
+
+  private isBadRequestWithMultipleExceptions(exception: unknown): exception is ValidationPipeError {
+    // noinspection UnnecessaryLocalVariableJS
+    const isBadRequestExceptionFromValidationPipe =
+      exception instanceof Object &&
+      safeHasProperty(exception, 'response') &&
+      safeHasProperty((exception as any).response, 'message') &&
+      Array.isArray((exception as any).response.message);
+
+    return isBadRequestExceptionFromValidationPipe;
+  }
+  private buildA5xxError(request: RequestWithReqId, exception: unknown) {
+    const errorDto500 = this.buildErrorDto(request, HttpStatus.INTERNAL_SERVER_ERROR, ERROR_MSG_500);
 
     return {
-      status: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: `Internal server error, contact support and provide them with the errorId`,
+      ...errorDto500,
+      errorId: this.getUuid(exception),
     };
+  }
+
+  private handleOtherHttpExceptions(exception: HttpException, request: RequestWithReqId): ErrorDto {
+    const status = exception.getStatus();
+    const response = exception.getResponse();
+    const { innerMsg, tempContext } = this.buildMsgAndContextForHttpError(response, status);
+
+    return this.buildErrorDto(request, status || 500, innerMsg, tempContext);
+  }
+
+  private buildMsgAndContextForHttpError(response: string | object | { message: string }, status: number) {
+    if (typeof response === 'string') {
+      return { innerMsg: response as string };
+    }
+
+    if (safeHasProperty(response, 'message')) {
+      const { message, ...ctx } = response as { message: string };
+
+      return { innerMsg: message, tempContext: ctx };
+    }
+    if (typeof response === 'object' && response !== null) {
+      return { innerMsg: `Api Exception Raised with status ${status}`, tempContext: response };
+    }
+
+    return { innerMsg: `Api Exception Raised with status ${status}` };
+  }
+
+  private handleCommandValidation(
+    exception: CommandValidationException,
+    request: RequestWithReqId
+  ): ValidationErrorDto {
+    const errorDto = this.buildErrorDto(request, HttpStatus.UNPROCESSABLE_ENTITY, exception.message, {});
+
+    return { ...errorDto, errors: exception.constraintsViolated };
   }
 
   private getUuid(exception: unknown) {
@@ -104,39 +202,28 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return randomUUID();
     }
   }
+  private handleZod(exception: ZodError, request: RequestWithReqId): ErrorDto {
+    const ctx = {
+      errors: exception.errors.map((err) => ({
+        message: err.message,
+        path: err.path,
+      })),
+    };
+
+    return this.buildErrorDto(request, HttpStatus.BAD_REQUEST, 'Zod Validation Failed', ctx);
+  }
+
+  private handleValidationPipeValidation(exception: ValidationPipeError, request: RequestWithReqId) {
+    const errorDto = this.buildErrorDto(request, HttpStatus.UNPROCESSABLE_ENTITY, 'Validation Error', {});
+
+    return { ...errorDto, errors: { general: { messages: exception.response.message, value: 'No Value Recorded' } } };
+  }
+
+  private handlerThrottlerException(request: RequestWithReqId) {
+    return this.buildErrorDto(request, HttpStatus.TOO_MANY_REQUESTS, 'API rate limit exceeded', {});
+  }
 }
 
-/**
- * Interface representing the structure of an error response.
- */
-export class ErrorDto {
-  statusCode: number;
-  timestamp: string;
-
-  /**
-   * Optional unique identifier for the error, useful for tracking using sentry and newrelic, only available for 500
-   */
-  errorId?: string;
-
-  path: string;
-  message: string | object;
-}
-
-function handleZod(exception: ZodError<any>) {
-  const status = HttpStatus.BAD_REQUEST; // Set appropriate status for ZodError
-  const message = {
-    errors: exception.errors.map((err) => ({
-      message: err.message,
-      path: err.path,
-    })),
-  };
-
-  return { status, message };
-}
-
-function handleCommandValidation(exception: CommandValidationException) {
-  const { mappedErrors } = exception;
-  const { message } = exception;
-
-  return { message: { message, cause: mappedErrors }, status: HttpStatus.BAD_REQUEST };
+function safeHasProperty(obj: unknown, property: string): boolean {
+  return typeof obj === 'object' && obj !== null && property in obj;
 }

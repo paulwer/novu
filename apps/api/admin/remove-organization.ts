@@ -1,24 +1,21 @@
-/* eslint-disable no-console */
 import '../src/config';
 import {
-  CommunityOrganizationRepository,
-  EnvironmentRepository,
-  CommunityMemberRepository,
-  SubscriberRepository,
-  IntegrationRepository,
-  NotificationTemplateRepository,
-  ChangeRepository,
   BaseRepository,
-  EnvironmentId,
-  OrganizationId,
+  ChangeRepository,
+  CommunityMemberRepository,
+  CommunityOrganizationRepository,
   EnforceEnvOrOrgIds,
+  EnvironmentId,
+  EnvironmentRepository,
   FeedRepository,
+  IntegrationRepository,
   LayoutRepository,
-  LogRepository,
   MessageRepository,
   MessageTemplateRepository,
   NotificationGroupRepository,
-  SubscriberPreferenceRepository,
+  NotificationTemplateRepository,
+  OrganizationId,
+  SubscriberRepository,
   TenantRepository,
   TopicRepository,
   TopicSubscribersRepository,
@@ -90,13 +87,11 @@ connect(async () => {
   await removeData(new IntegrationRepository(), 'integrations', organization._id, envIds);
   // await removeData(new JobRepository(), 'jobs', organization._id, envIds);
   await removeData(new LayoutRepository(), 'layouts', organization._id, envIds);
-  await removeData(new LogRepository(), 'logs', organization._id, envIds);
   await removeData(new MessageRepository(), 'messages', organization._id, envIds);
   await removeData(new MessageTemplateRepository(), 'messagetemplates', organization._id, envIds);
   await removeData(new NotificationGroupRepository(), 'notificationgroups', organization._id, envIds);
   // await removeData(new NotificationRepository(), 'notifications', organization._id, envIds);
   await removeData(new NotificationTemplateRepository(), 'workflows', organization._id, envIds);
-  await removeData(new SubscriberPreferenceRepository(), 'subscriberpreferences', organization._id, envIds);
   await removeData(new SubscriberRepository(), 'subscribers', organization._id, envIds);
   await removeData(new TenantRepository(), 'tenants', organization._id, envIds);
   await removeData(new TopicRepository(), 'topics', organization._id, envIds);

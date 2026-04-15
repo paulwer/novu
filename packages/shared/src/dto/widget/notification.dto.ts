@@ -1,6 +1,6 @@
 import { ChannelTypeEnum } from '../../types';
-import { ISubscriberResponseDto } from '../subscriber';
-import { IActor, IMessageCTA } from '../../entities/messages';
+import { IActorDto, IMessageCTADto } from '../message-template';
+import { ISubscriberFeedResponseDto } from '../subscriber';
 
 export interface INotificationDto {
   _id: string;
@@ -13,23 +13,23 @@ export interface INotificationDto {
   _feedId?: string | null;
   _jobId: string;
   createdAt: string;
-  updatedAt: string;
-  expireAt: string;
+  updatedAt?: string | null;
   lastSeenDate?: string;
   lastReadDate?: string;
-  actor?: IActor;
-  subscriber?: ISubscriberResponseDto;
+  actor?: IActorDto;
+  subscriber?: ISubscriberFeedResponseDto;
   transactionId: string;
-  templateIdentifier: string;
-  providerId: string;
+  templateIdentifier?: string | null;
+  providerId?: string | null;
   content: string;
   channel: ChannelTypeEnum;
   read: boolean;
   seen: boolean;
-  deleted: boolean;
-  deviceTokens?: string[];
-  cta: IMessageCTA;
+  archived: boolean;
+  subject?: string | null;
+  deviceTokens?: string[] | null;
+  cta: IMessageCTADto;
   status: 'sent' | 'error' | 'warning';
-  payload: Record<string, unknown>;
-  overrides: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+  overrides?: Record<string, unknown>;
 }

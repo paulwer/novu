@@ -1,7 +1,28 @@
-import { IsDefined } from 'class-validator';
-import { JobEntity } from '@novu/dal';
 import { EnvironmentWithUserCommand } from '@novu/application-generic';
-import { ControlsDto } from '@novu/shared';
+import { JobEntity, NotificationEntity } from '@novu/dal';
+import { StatelessControls } from '@novu/shared';
+import { IsDefined } from 'class-validator';
+
+export type PartialNotificationEntity = Pick<
+  NotificationEntity,
+  | '_id'
+  | '_templateId'
+  | '_organizationId'
+  | '_environmentId'
+  | '_subscriberId'
+  | 'transactionId'
+  | 'channels'
+  | 'to'
+  | 'payload'
+  | 'controls'
+  | 'topics'
+  | '_digestedNotificationId'
+  | 'createdAt'
+  | 'severity'
+  | 'critical'
+  | 'contextKeys'
+  | 'tags'
+>;
 
 export class AddJobCommand extends EnvironmentWithUserCommand {
   @IsDefined()
@@ -10,5 +31,7 @@ export class AddJobCommand extends EnvironmentWithUserCommand {
   @IsDefined()
   job: JobEntity;
 
-  controls?: ControlsDto;
+  notification?: PartialNotificationEntity | null;
+
+  controls?: StatelessControls;
 }

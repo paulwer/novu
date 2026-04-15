@@ -1,14 +1,12 @@
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/primitives/tooltip';
+import { Slot, SlotProps } from '@radix-ui/react-slot';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/primitives/tooltip';
 import { cn } from '@/utils/ui';
-import { useCallback, useEffect, useRef, useState } from 'react';
 
-interface TruncatedTextProps {
-  text: string;
-  className?: string;
-  onClick?: React.MouseEventHandler<HTMLSpanElement>;
-}
+type TruncatedTextProps = SlotProps & { asChild?: boolean };
 
-export default function TruncatedText({ text, className = '', onClick }: TruncatedTextProps) {
+export default function TruncatedText(props: TruncatedTextProps) {
+  const { className, children, asChild, ...rest } = props;
   const [isTruncated, setIsTruncated] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
 
@@ -19,26 +17,41 @@ export default function TruncatedText({ text, className = '', onClick }: Truncat
     }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!textRef.current) return;
+
+    const element = textRef.current;
+    const mutationObserver = new MutationObserver(checkTruncation);
+    const resizeObserver = new ResizeObserver(checkTruncation);
+
+    mutationObserver.observe(element, { childList: true, subtree: true });
+    resizeObserver.observe(element);
+
     checkTruncation();
+
     window.addEventListener('resize', checkTruncation);
-    return () => window.removeEventListener('resize', checkTruncation);
+
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', checkTruncation);
+    };
   }, [checkTruncation]);
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span ref={textRef} className={cn('block truncate', className)} onClick={onClick}>
-            {text}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {asChild ? (
+          <Slot ref={textRef} className={cn('truncate inline-block align-bottom font-medium', className)} {...rest}>
+            {children}
+          </Slot>
+        ) : (
+          <span ref={textRef} className={cn('truncate inline-block align-bottom font-medium', className)} {...rest}>
+            {children}
           </span>
-        </TooltipTrigger>
-        {isTruncated && (
-          <TooltipContent>
-            <p>{text}</p>
-          </TooltipContent>
         )}
-      </Tooltip>
-    </TooltipProvider>
+      </TooltipTrigger>
+      {isTruncated && <TooltipContent style={{ wordBreak: 'break-all' }}>{children}</TooltipContent>}
+    </Tooltip>
   );
 }

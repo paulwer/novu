@@ -1,7 +1,7 @@
 import { Inject } from '@nestjs/common';
 import { Types } from 'mongoose';
+import { IUserResetTokenCount, UserEntity } from './user.entity';
 import { IUserRepository } from './user-repository.interface';
-import { UserEntity, IUserResetTokenCount } from './user.entity';
 
 export class UserRepository implements IUserRepository {
   constructor(@Inject('USER_REPOSITORY') private userRepository: IUserRepository) {}
@@ -24,6 +24,10 @@ export class UserRepository implements IUserRepository {
     resetTokenCount: IUserResetTokenCount
   ): Promise<{ matched: number; modified: number }> {
     return this.userRepository.updatePasswordResetToken(userId, token, resetTokenCount);
+  }
+
+  async findUserSessions(userId: string): Promise<[]> {
+    return this.userRepository.findUserSessions(userId);
   }
 
   create(data: any, options?: any): Promise<UserEntity> {

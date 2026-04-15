@@ -1,4 +1,3 @@
-import './config/env.config';
 import './instrument';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -20,6 +19,8 @@ export async function bootstrap(): Promise<INestApplication> {
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   });
+
+  app.enableShutdownHooks();
 
   await app.listen(process.env.PORT);
 

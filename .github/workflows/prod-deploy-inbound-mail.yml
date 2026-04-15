@@ -4,6 +4,8 @@ name: Deploy PROD Inbound Mail
 # events but only for the master branch
 on:
   workflow_dispatch:
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
 jobs:
   test_inbound_mail:
@@ -30,10 +32,12 @@ jobs:
       matrix:
         name: ['novu/inbound-mail-ee', 'novu/inbound-mail']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-project
 
       - name: build api
+        env:
+          NX_NO_CLOUD: ${{ secrets.NX_CLOUD_ACCESS_TOKEN == '' && 'true' || 'false' }}
         run: pnpm build:inbound-mail
 
       - uses: crazy-max/ghaction-setup-docker@v2

@@ -17,16 +17,32 @@
         "owner": "typescript",
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "Successfully compiled",
+          "beginsPattern": "Running...",
           "endsPattern": "Started application in NODE_ENV"
         }
       }
-    },   
+    },
     {
       "type": "npm",
       "script": "start",
       "isBackground": true,
       "label": "WORKER",
+      "path": "/apps/worker",
+      "problemMatcher": {
+        "base": "$tsc-watch",
+        "owner": "typescript",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Running...",
+          "endsPattern": "Listening for NODE_ENV="
+        }
+      }
+    },
+    {
+      "type": "npm",
+      "script": "start:test",
+      "isBackground": true,
+      "label": "WORKER TEST",
       "path": "/apps/worker",
       "problemMatcher": {
         "base": "$tsc-watch",
@@ -40,15 +56,7 @@
       "icon": {
         "id": "server",
         "color": "terminal.ansiGreen"
-      },
-      "dependsOn": [
-        "SHARED",
-        "API",
-        "APPLICATION GENERIC",
-        "DAL",
-        "EE - TRANSLATION",
-        "EE - BILLING"
-      ]
+      }
     },
     {
       "type": "npm",
@@ -65,35 +73,10 @@
         "owner": "typescript",
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "Compiling...",
-          "endsPattern": "webpack compiled successfully"
+          "beginsPattern": "vite",
+          "endsPattern": "➜  Local:   http://localhost:4201"
         }
       }
-    },    {
-      "type": "npm",
-      "script": "start",
-      "isBackground": true,
-      "label": "WEB",
-      "path": "/apps/web",
-      "icon": {
-        "id": "browser",
-        "color": "terminal.ansiGreen"
-      },
-      "problemMatcher": {
-        "base": "$tsc-watch",
-        "owner": "typescript",
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "Compiling...",
-          "endsPattern": "webpack compiled successfully"
-        }
-      },
-      "dependsOn": [
-        "SHARED",
-        "API",
-        "DESIGN SYSTEM",
-        "NOVUI"
-      ]
     },
     {
       "type": "npm",
@@ -109,12 +92,7 @@
       "isBackground": true,
       "label": "APPLICATION GENERIC",
       "path": "/libs/application-generic",
-      "problemMatcher": "$tsc-watch",
-      "dependsOn": [
-        "SHARED",
-        "TESTING",
-        "PROVIDERS"
-      ]
+      "problemMatcher": "$tsc-watch"
     },
     {
       "type": "npm",
@@ -122,17 +100,6 @@
       "isBackground": true,
       "label": "DAL",
       "path": "/libs/dal",
-      "problemMatcher": "$tsc-watch",
-      "dependsOn": [
-        "SHARED"
-      ]
-    },
-    {
-      "type": "npm",
-      "script": "start",
-      "isBackground": true,
-      "label": "STATELESS",
-      "path": "/packages/stateless",
       "problemMatcher": "$tsc-watch"
     },
     {
@@ -141,17 +108,6 @@
       "isBackground": true,
       "label": "PROVIDERS",
       "path": "/packages/providers",
-      "problemMatcher": "$tsc-watch",
-      "dependsOn": [
-        "SHARED"
-      ]
-    },
-    {
-      "type": "npm",
-      "script": "start",
-      "isBackground": true,
-      "label": "NODE",
-      "path": "/packages/node",
       "problemMatcher": "$tsc-watch"
     },
     {
@@ -160,10 +116,7 @@
       "isBackground": true,
       "label": "TESTING",
       "path": "/libs/testing",
-      "problemMatcher": "$tsc-watch",
-      "dependsOn": [
-        "SHARED"
-      ]
+      "problemMatcher": "$tsc-watch"
     },
     {
       "type": "npm",
@@ -171,8 +124,7 @@
       "isBackground": true,
       "label": "EE - TRANSLATION",
       "path": "/enterprise/packages/translation",
-      "problemMatcher": "$tsc-watch",
-      "dependsOn": ["SHARED", "EE - DAL", "EE - SHARED SERVICES"]
+      "problemMatcher": "$tsc-watch"
     },
     {
       "type": "npm",
@@ -180,8 +132,7 @@
       "isBackground": true,
       "label": "EE - BILLING",
       "path": "/enterprise/packages/billing",
-      "problemMatcher": "$tsc-watch",
-      "dependsOn": ["SHARED", "EE - DAL"]
+      "problemMatcher": "$tsc-watch"
     },
     {
       "type": "npm",
@@ -189,8 +140,23 @@
       "isBackground": true,
       "label": "EE - DAL",
       "path": "/enterprise/packages/dal",
-      "problemMatcher": "$tsc-watch",
-      "dependsOn": ["SHARED"]
+      "problemMatcher": "$tsc-watch"
+    },
+    {
+      "type": "npm",
+      "script": "build:watch",
+      "isBackground": true,
+      "label": "EE - API",
+      "path": "/enterprise/packages/api",
+      "problemMatcher": "$tsc-watch"
+    },
+    {
+      "type": "npm",
+      "script": "build:watch",
+      "isBackground": true,
+      "label": "EE - AUTH",
+      "path": "/enterprise/packages/auth",
+      "problemMatcher": "$tsc-watch"
     },
     {
       "type": "npm",
@@ -198,43 +164,28 @@
       "isBackground": true,
       "label": "EE - SHARED SERVICES",
       "path": "/enterprise/packages/shared-services",
-      "problemMatcher": "$tsc-watch",
-      "dependsOn": ["SHARED"]
-    },
-    {
-      "type": "npm",
-      "script": "build",
-      "label": "DESIGN SYSTEM",
-      "path": "/libs/design-system",
       "problemMatcher": "$tsc-watch"
-    },
-    {
-      "type": "npm",
-      "script": "setup",
-      "label": "NOVUI",
-      "path": "/libs/novui",
-      "problemMatcher": "$tsc"
-    },
-    {
-      "type": "npm",
-      "script": "build",
-      "label": "NOTIFICATION CENTER",
-      "path": "/packages/notification-center",
-      "problemMatcher": "$tsc",
-      "dependsOn": [
-        "NC CLIENT",
-        "SHARED"
-      ]
     },
     {
       "type": "npm",
       "script": "build",
       "label": "NC CLIENT",
       "path": "/packages/client",
-      "problemMatcher": "$tsc",
-      "dependsOn": [
-        "SHARED"
-      ]
+      "problemMatcher": "$tsc"
+    },
+    {
+      "type": "npm",
+      "script": "build:watch",
+      "label": "Novu Javascript",
+      "path": "/packages/js",
+      "problemMatcher": "$tsc"
+    },
+    {
+      "type": "npm",
+      "script": "build:watch",
+      "label": "Novu React",
+      "path": "/packages/react",
+      "problemMatcher": "$tsc"
     }
   ]
 }

@@ -1,30 +1,35 @@
-import { IsDefined, IsString, IsOptional, ValidateNested, IsMongoId, IsEnum } from 'class-validator';
-
+import { EnvironmentWithUserCommand, SubscriberTopicPreference } from '@novu/application-generic';
+import { SubscriberEntity } from '@novu/dal';
+import { DiscoverWorkflowOutput } from '@novu/framework/internal';
 import {
-  ControlsDto,
   ISubscribersDefine,
   ITenantDefine,
+  StatelessControls,
   SubscriberSourceEnum,
+  TriggerOverrides,
   TriggerRequestCategoryEnum,
 } from '@novu/shared';
-import { SubscriberEntity } from '@novu/dal';
-import { EnvironmentWithUserCommand } from '@novu/application-generic';
-import { DiscoverWorkflowOutput } from '@novu/framework/internal';
+import { IsArray, IsDefined, IsEnum, IsMongoId, IsOptional, IsString, ValidateNested } from 'class-validator';
 
 export class SubscriberJobBoundCommand extends EnvironmentWithUserCommand {
   @IsString()
   @IsDefined()
   transactionId: string;
 
+  // TODO: remove optional flag after all the workers are migrated to use requestId NV-6475
+  @IsString()
+  @IsOptional()
+  requestId?: string;
+
   @IsDefined()
-  payload: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  payload: any;
 
   @IsDefined()
   @IsString()
   identifier: string;
 
   @IsDefined()
-  overrides: Record<string, Record<string, unknown>>;
+  overrides: TriggerOverrides;
 
   @IsOptional()
   @ValidateNested()
@@ -33,12 +38,19 @@ export class SubscriberJobBoundCommand extends EnvironmentWithUserCommand {
   @IsOptional()
   actor?: SubscriberEntity;
 
+  @IsArray()
+  @IsString({ each: true })
+  contextKeys: string[];
+
   @IsDefined()
   @IsMongoId()
   templateId: string;
 
   @IsDefined()
   subscriber: ISubscribersDefine;
+
+  @IsOptional()
+  topics?: SubscriberTopicPreference[];
 
   @IsDefined()
   @IsEnum(SubscriberSourceEnum)
@@ -50,9 +62,5 @@ export class SubscriberJobBoundCommand extends EnvironmentWithUserCommand {
 
   bridge?: { url: string; workflow: DiscoverWorkflowOutput };
 
-  controls?: ControlsDto;
-
-  @IsDefined()
-  @IsString()
-  environmentName: string;
+  controls?: StatelessControls;
 }

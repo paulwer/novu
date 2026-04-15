@@ -1,182 +1,248 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import {
-  Background,
-  BackgroundVariant,
-  Controls,
-  Node,
-  ReactFlow,
-  ReactFlowProvider,
-  useReactFlow,
-  ViewportHelperFunctionOptions,
-} from '@xyflow/react';
+import { EnvironmentEnum, EnvironmentTypeEnum, PermissionsEnum, ResourceOriginEnum } from '@novu/shared';
+import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import {
-  AddNode,
-  ChatNode,
-  CustomNode,
-  DelayNode,
-  DigestNode,
-  EmailNode,
-  InAppNode,
-  NodeData,
-  PushNode,
-  SmsNode,
-  TriggerNode,
-} from './nodes';
-import { AddNodeEdge, AddNodeEdgeType } from './edges';
-import { NODE_HEIGHT, NODE_WIDTH } from './base-node';
-import { StepTypeEnum } from '@/utils/enums';
+import { useUser } from '@clerk/clerk-react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { InlineToast } from '@/components/primitives/inline-toast';
+import { useWorkflow } from '@/components/workflow-editor/workflow-provider';
+import { useEnvironment } from '@/context/environment/hooks';
+import { useHasPermission } from '@/hooks/use-has-permission';
+import { buildRoute, ROUTES } from '@/utils/routes';
 import { Step } from '@/utils/types';
-
-const nodeTypes = {
-  trigger: TriggerNode,
-  email: EmailNode,
-  sms: SmsNode,
-  in_app: InAppNode,
-  push: PushNode,
-  chat: ChatNode,
-  delay: DelayNode,
-  digest: DigestNode,
-  custom: CustomNode,
-  add: AddNode,
-};
-
-const edgeTypes = {
-  addNode: AddNodeEdge,
-};
+import { CanvasContext } from './drag-context';
+import { edgeTypes, nodeTypes } from './node-utils';
+import { useCanvasNodesEdges } from './use-canvas-nodes-edges';
+import { WorkflowChecklist } from './workflow-checklist';
 
 const panOnDrag = [1, 2];
 
-// y distance = node height + space between nodes
-const Y_DISTANCE = NODE_HEIGHT + 50;
-
-const mapStepToNode = (
-  step: Step,
-  previousPosition: { x: number; y: number },
-  addStepIndex: number
-): Node<NodeData, keyof typeof nodeTypes> => {
-  let content = '';
-  if (step.type === StepTypeEnum.DELAY) {
-    content = `Wait to send ~ 30 minutes`;
-  }
-
-  const fieldIssues = Object.values({ ...step.issues?.body, ...step.issues?.control })[0];
-  const error = fieldIssues?.[0]?.message;
-
-  return {
-    id: crypto.randomUUID(),
-    position: { x: previousPosition.x, y: previousPosition.y + Y_DISTANCE },
-    data: {
-      name: step.name,
-      content,
-      addStepIndex,
-      stepId: step._id,
-      error,
-    },
-    type: step.type,
-  };
-};
-
-const WorkflowCanvasChild = ({ steps }: { steps: Step[] }) => {
+const WorkflowCanvasChild = ({
+  steps,
+  showStepPreview,
+  isReadOnly,
+}: {
+  steps: Step[];
+  showStepPreview?: boolean;
+  isReadOnly?: boolean;
+}) => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useReactFlow();
+  const { currentEnvironment } = useEnvironment();
+  const { workflow } = useWorkflow();
+  const navigate = useNavigate();
+  const { user } = useUser();
 
-  const nodes = useMemo(() => {
-    const triggerNode = { id: '0', position: { x: 0, y: 0 }, data: {}, type: 'trigger' };
-    let previousPosition = triggerNode.position;
-
-    const createdNodes = steps.map((el, index) => {
-      const node = mapStepToNode(el, previousPosition, index);
-      previousPosition = node.position;
-      return node;
-    });
-
-    const addNode: Node<NodeData> = {
-      id: crypto.randomUUID(),
-      position: { ...previousPosition, y: previousPosition.y + Y_DISTANCE },
-      data: {},
-      type: 'add',
-    };
-
-    return [triggerNode, ...createdNodes, addNode];
-  }, [steps]);
-
-  const edges = useMemo(
-    () =>
-      nodes.reduce<AddNodeEdgeType[]>((acc, node, index) => {
-        if (index === 0) {
-          return acc;
-        }
-
-        const parent = nodes[index - 1];
-        acc.push({
-          id: `edge-${parent.id}-${node.id}`,
-          source: parent.id,
-          sourceHandle: 'b',
-          targetHandle: 'a',
-          target: node.id,
-          type: 'addNode',
-          style: { stroke: 'hsl(var(--neutral-alpha-200))', strokeWidth: 2, strokeDasharray: 5 },
-          data: {
-            isLast: index === nodes.length - 1,
-            addStepIndex: index - 1,
-          },
-        });
-
-        return acc;
-      }, []),
-    [nodes]
-  );
-
-  const positionCanvas = useCallback(
-    (options?: ViewportHelperFunctionOptions) => {
-      const clientWidth = reactFlowWrapper.current?.clientWidth;
-      const middle = clientWidth ? clientWidth / 2 - NODE_WIDTH / 2 : 0;
-
-      reactFlowInstance.setViewport({ x: middle, y: 50, zoom: 1 }, options);
-    },
-    [reactFlowInstance]
-  );
+  const {
+    nodes,
+    edges,
+    draggedNodeId,
+    intersectingNodeId,
+    intersectingEdgeId,
+    animatingNodeIds,
+    selectNode,
+    selectedNodeId,
+    unselectNode,
+    onNodeDragStart,
+    onNodeDragMove,
+    onNodeDragEnd,
+    copyNode,
+    addNode,
+    removeNode,
+  } = useCanvasNodesEdges({
+    steps,
+    reactFlowInstance,
+    reactFlowWrapper,
+  });
 
   useEffect(() => {
-    const listener = () => positionCanvas({ duration: 300 });
+    const element = reactFlowWrapper.current;
+    if (!element) return;
 
-    window.addEventListener('resize', listener);
+    let previousWidth = element.clientWidth;
 
-    return () => {
-      window.removeEventListener('resize', listener);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const newWidth = entry.contentRect.width;
+        if (newWidth === previousWidth) continue;
+
+        const difference = newWidth - previousWidth;
+        const { x, y, zoom } = reactFlowInstance.getViewport();
+        reactFlowInstance.setViewport({ x: x + difference / 2, y, zoom });
+
+        previousWidth = newWidth;
+      }
+    });
+
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [reactFlowInstance]);
+
+  const isCodeFirstWorkflow = workflow?.origin === ResourceOriginEnum.EXTERNAL;
+
+  const dragContextValue = useMemo(() => {
+    return {
+      isReadOnly,
+      showStepPreview,
+      isCodeFirstWorkflow,
+      onNodeDragStart,
+      onNodeDragMove,
+      onNodeDragEnd,
+      draggedNodeId,
+      intersectingNodeId,
+      intersectingEdgeId,
+      animatingNodeIds,
+      copyNode,
+      addNode,
+      removeNode,
+      selectNode,
+      selectedNodeId,
+      unselectNode,
     };
-  }, [positionCanvas]);
-
-  useLayoutEffect(() => {
-    positionCanvas();
-  }, [positionCanvas]);
+  }, [
+    isReadOnly,
+    showStepPreview,
+    isCodeFirstWorkflow,
+    onNodeDragStart,
+    onNodeDragMove,
+    onNodeDragEnd,
+    draggedNodeId,
+    intersectingNodeId,
+    intersectingEdgeId,
+    animatingNodeIds,
+    copyNode,
+    addNode,
+    removeNode,
+    selectNode,
+    selectedNodeId,
+    unselectNode,
+  ]);
 
   return (
-    <div ref={reactFlowWrapper} className="h-full w-full">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        deleteKeyCode={null}
-        maxZoom={1}
-        minZoom={1}
-        panOnScroll
-        selectionOnDrag
-        panOnDrag={panOnDrag}
-      >
-        <Controls showZoom={false} />
-        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-      </ReactFlow>
-    </div>
+    <CanvasContext.Provider value={dragContextValue}>
+      {/* biome-ignore lint/correctness/useUniqueElementIds: used for the preview hover card */}
+      <div ref={reactFlowWrapper} className="h-full w-full" id="workflow-canvas-container">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          deleteKeyCode={null}
+          maxZoom={1}
+          minZoom={0.9}
+          panOnScroll
+          selectionOnDrag
+          panOnDrag={panOnDrag}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          onPaneClick={() => {
+            if (isReadOnly) {
+              return;
+            }
+
+            // unselect node if clicked on background
+            unselectNode();
+            if (currentEnvironment?.slug && workflow?.slug) {
+              navigate(
+                buildRoute(ROUTES.EDIT_WORKFLOW, {
+                  environmentSlug: currentEnvironment.slug,
+                  workflowSlug: workflow.slug,
+                })
+              );
+            }
+          }}
+        >
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={24}
+            size={1}
+            bgColor="hsl(var(--bg-weak))"
+            color="hsl(var(--bg-muted))"
+          />
+        </ReactFlow>
+
+        {workflow &&
+          currentEnvironment?.name === EnvironmentEnum.DEVELOPMENT &&
+          workflow.origin === ResourceOriginEnum.NOVU_CLOUD &&
+          !user?.unsafeMetadata?.workflowChecklistCompleted && <WorkflowChecklist steps={steps} workflow={workflow} />}
+      </div>
+    </CanvasContext.Provider>
   );
 };
 
-export const WorkflowCanvas = ({ steps }: { steps: Step[] }) => {
+export const WorkflowCanvas = ({
+  steps,
+  showStepPreview,
+  isReadOnly,
+}: {
+  steps: Step[];
+  showStepPreview?: boolean;
+  isReadOnly?: boolean;
+}) => {
+  const has = useHasPermission();
+  const { currentEnvironment, switchEnvironment, oppositeEnvironment } = useEnvironment();
+  const { workflow: currentWorkflow } = useWorkflow();
+  const navigate = useNavigate();
+  const hasPermission = has({ permission: PermissionsEnum.WORKFLOW_WRITE });
+  const showReadOnlyOverlay =
+    currentEnvironment && currentWorkflow && (!hasPermission || currentEnvironment?.type !== EnvironmentTypeEnum.DEV);
+
+  const handleSwitchToDevelopment = () => {
+    const developmentEnvironment = oppositeEnvironment?.name === 'Development' ? oppositeEnvironment : null;
+
+    if (developmentEnvironment?.slug && currentWorkflow?.workflowId) {
+      switchEnvironment(developmentEnvironment.slug);
+      navigate(
+        buildRoute(ROUTES.EDIT_WORKFLOW, {
+          environmentSlug: developmentEnvironment.slug,
+          workflowSlug: currentWorkflow.workflowId,
+        })
+      );
+    }
+  };
+
   return (
     <ReactFlowProvider>
-      <WorkflowCanvasChild steps={steps} />
+      <div className="relative h-full w-full">
+        <WorkflowCanvasChild
+          steps={currentWorkflow?.steps || steps || []}
+          showStepPreview={showStepPreview}
+          isReadOnly={isReadOnly}
+        />
+
+        {showReadOnlyOverlay && (
+          <>
+            <div
+              className="border-warning/20 pointer-events-none absolute inset-x-0 top-0 border-t-[0.5px]"
+              style={{
+                position: 'absolute',
+                height: '100%',
+                background: 'linear-gradient(to bottom, hsl(var(--warning) / 0.08), transparent 4%)',
+                transition: 'border 0.3s ease-in-out, background 0.3s ease-in-out',
+              }}
+            />
+            <div className="absolute left-4 top-4 z-50 rounded-lg bg-white">
+              <InlineToast
+                className="bg-warning/10 border shadow-md"
+                variant={'warning'}
+                description={
+                  hasPermission && currentEnvironment?.type !== EnvironmentTypeEnum.DEV
+                    ? 'Edit the workflow in your development environment.'
+                    : 'Content visible but locked for editing. Contact an admin for edit access.'
+                }
+                title="View-only:"
+                ctaLabel={
+                  hasPermission && currentEnvironment?.type !== EnvironmentTypeEnum.DEV
+                    ? 'Switch environment'
+                    : undefined
+                }
+                onCtaClick={handleSwitchToDevelopment}
+              />
+            </div>
+          </>
+        )}
+      </div>
     </ReactFlowProvider>
   );
 };

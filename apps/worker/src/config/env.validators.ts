@@ -1,11 +1,5 @@
-import { json, port, str, num, ValidatorSpec, makeValidator, bool, CleanedEnv, cleanEnv, url } from 'envalid';
-import {
-  DEFAULT_MESSAGE_GENERIC_RETENTION_DAYS,
-  DEFAULT_MESSAGE_IN_APP_RETENTION_DAYS,
-  DEFAULT_NOTIFICATION_RETENTION_DAYS,
-  FeatureFlagsKeysEnum,
-  StringifyEnv,
-} from '@novu/shared';
+import { DEFAULT_NOTIFICATION_RETENTION_DAYS, FeatureFlagsKeysEnum, StringifyEnv } from '@novu/shared';
+import { bool, CleanedEnv, cleanEnv, json, makeValidator, num, port, str, url, ValidatorSpec } from 'envalid';
 
 export function validateEnv() {
   return cleanEnv(process.env, envValidators);
@@ -22,6 +16,20 @@ const str32 = makeValidator((variable) => {
   return variable;
 });
 
+function getFeatureFlagValidator(
+  key: FeatureFlagsKeysEnum
+): ValidatorSpec<string | number | boolean | undefined> {
+  if (key.endsWith('_NUMBER') || key === FeatureFlagsKeysEnum.MAX_ENVIRONMENT_COUNT) {
+    return num({ default: undefined });
+  }
+
+  if (key.startsWith('IS_')) {
+    return bool({ default: false });
+  }
+
+  return str({ default: undefined });
+}
+
 /**
  * Declare your ENV variables here.
  *
@@ -34,10 +42,12 @@ export const envValidators = {
   PORT: port(),
   STORE_ENCRYPTION_KEY: str32(),
   STORE_NOTIFICATION_CONTENT: bool({ default: false }),
+  ENABLE_OTEL: bool({ default: false }),
+  ENABLE_OTEL_LOGS: bool({ default: false }),
+  OTEL_PROMETHEUS_PORT: num({ default: 9464 }),
   MAX_NOVU_INTEGRATION_MAIL_REQUESTS: num({ default: 300 }),
   NOVU_EMAIL_INTEGRATION_API_KEY: str({ default: '' }),
   STORAGE_SERVICE: str({ default: undefined }),
-  METRICS_SERVICE: str({ default: '' }),
   REDIS_HOST: str(),
   REDIS_PORT: port(),
   REDIS_PASSWORD: str({ default: undefined }),
@@ -51,27 +61,40 @@ export const envValidators = {
   REDIS_CACHE_KEEP_ALIVE: str({ default: undefined }),
   REDIS_CACHE_FAMILY: str({ default: undefined }),
   REDIS_CACHE_KEY_PREFIX: str({ default: undefined }),
-  MONGO_URL: str(),
+  REDIS_MASTER_HOST: str({ default: '' }),
+  REDIS_MASTER_PORT: str({ default: '' }),
+  REDIS_SLAVE_HOST: str({ default: '' }),
+  REDIS_SLAVE_PORT: str({ default: '' }),
+  MONGO_AUTO_CREATE_INDEXES: bool({ default: false }),
+  MONGO_MAX_IDLE_TIME_IN_MS: num({ default: 1000 * 30 }),
+  MONGO_MAX_POOL_SIZE: num({ default: 50 }),
   MONGO_MIN_POOL_SIZE: num({ default: 10 }),
-  MONGO_MAX_POOL_SIZE: num({ default: 500 }),
+  MONGO_URL: str(),
   SEGMENT_TOKEN: str({ default: undefined }),
   LAUNCH_DARKLY_SDK_KEY: str({ default: undefined }),
   STRIPE_API_KEY: str({ default: undefined }),
   NOTIFICATION_RETENTION_DAYS: num({ default: DEFAULT_NOTIFICATION_RETENTION_DAYS }),
-  MESSAGE_GENERIC_RETENTION_DAYS: num({ default: DEFAULT_MESSAGE_GENERIC_RETENTION_DAYS }),
-  MESSAGE_IN_APP_RETENTION_DAYS: num({ default: DEFAULT_MESSAGE_IN_APP_RETENTION_DAYS }),
   API_ROOT_URL: url(),
-
+  SUBSCRIBER_WIDGET_JWT_EXPIRATION_TIME: str({ default: '15 days' }),
+  WORKER_DEFAULT_CONCURRENCY: num({ default: undefined }),
+  WORKER_DEFAULT_LOCK_DURATION: num({ default: undefined }),
+  SUBSCRIBER_PROCESS_WORKER_CONCURRENCY: num({ default: undefined }),
+  STANDARD_WORKER_CONCURRENCY: num({ default: undefined }),
+  WORKFLOW_WORKER_CONCURRENCY: num({ default: undefined }),
+  SQS_DEFAULT_CONCURRENCY: num({ default: undefined }),
+  SQS_DEFAULT_VISIBILITY_TIMEOUT: num({ default: undefined }),
+  SQS_DEFAULT_BATCH_SIZE: num({ default: undefined }),
+  SQS_DEFAULT_WAIT_TIME_SECONDS: num({ default: undefined }),
+  SOCKET_WORKER_URL: str({ default: undefined }),
+  INTERNAL_SERVICES_API_KEY: str({ default: undefined }),
+  SCHEDULER_URL: str({ default: undefined }),
+  SCHEDULER_API_KEY: str({ default: undefined }),
+  STEP_RESOLVER_DISPATCH_URL: str({ default: undefined }),
+  STEP_RESOLVER_HMAC_SECRET: str({ default: '' }),
   // Feature Flags
-  ...Object.keys(FeatureFlagsKeysEnum).reduce(
-    (acc, key) => {
-      return {
-        ...acc,
-        [key as FeatureFlagsKeysEnum]: bool({ default: false }),
-      };
-    },
-    {} as Record<FeatureFlagsKeysEnum, ValidatorSpec<boolean>>
-  ),
+  ...(Object.fromEntries(
+    Object.values(FeatureFlagsKeysEnum).map((key) => [key, getFeatureFlagValidator(key)])
+  ) as Record<FeatureFlagsKeysEnum, ValidatorSpec<string | number | boolean | undefined>>),
 
   // Azure validators
   ...(processEnv.STORAGE_SERVICE === 'AZURE' && {
@@ -92,8 +115,6 @@ export const envValidators = {
     S3_LOCAL_STACK: str({ default: '' }),
     S3_BUCKET_NAME: str(),
     S3_REGION: str(),
-    AWS_ACCESS_KEY_ID: str(),
-    AWS_SECRET_ACCESS_KEY: str(),
   }),
 
   // Production validators

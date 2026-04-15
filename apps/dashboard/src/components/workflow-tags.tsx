@@ -1,4 +1,5 @@
-import { Tag } from '@/components/primitives/tag';
+import { Badge } from './primitives/badge';
+import TruncatedText from './truncated-text';
 
 type WorkflowTagsProps = {
   tags: string[];
@@ -10,6 +11,7 @@ export const WorkflowTags = (props: WorkflowTagsProps) => {
   const sliceFactor = 3;
   let firstTags: string[] = [];
   let restTags: string[] = [];
+
   if (tags.length > sliceFactor) {
     firstTags = tags.slice(0, sliceFactor - 1);
     restTags = tags.slice(sliceFactor - 1);
@@ -18,14 +20,18 @@ export const WorkflowTags = (props: WorkflowTagsProps) => {
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex min-w-0 flex-wrap items-center gap-1">
       <>
         {firstTags.map((tag) => (
-          <Tag key={tag} variant={'feature'}>
-            {tag}
-          </Tag>
+          <Badge key={tag} color="purple" size="md" variant="lighter" className="max-w-32 shrink-0">
+            <TruncatedText className="block max-w-full">{tag}</TruncatedText>
+          </Badge>
         ))}
-        {restTags.length > 0 && <Tag>+{restTags.length}</Tag>}
+        {restTags.length > 0 && (
+          <Badge color="gray" size="md" variant="lighter" className="shrink-0">
+            +{restTags.length}
+          </Badge>
+        )}
       </>
     </div>
   );

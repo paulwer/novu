@@ -1,16 +1,14 @@
+import { useOrganization, useUser } from '@clerk/clerk-react';
+import type { OrganizationResource, UserResource } from '@clerk/types';
 import { ReactNode, useCallback, useEffect, useMemo } from 'react';
-import { useAuth, useOrganization, useOrganizationList, useUser } from '@clerk/clerk-react';
-import type { UserResource } from '@clerk/types';
 import { ROUTES } from '@/utils/routes';
-import type { AuthContextValue } from './types';
-import { toOrganizationEntity, toUserEntity } from './mappers';
 import { AuthContext } from './auth-context';
+import { toOrganizationEntity, toUserEntity } from './mappers';
+import type { AuthContextValue } from './types';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const { orgId } = useAuth();
   const { user: clerkUser, isLoaded: isUserLoaded } = useUser();
   const { organization: clerkOrganization, isLoaded: isOrganizationLoaded } = useOrganization();
-  const { setActive, isLoaded: isOrgListLoaded } = useOrganizationList({ userMemberships: { infinite: true } });
 
   const redirectTo = useCallback(
     ({
@@ -44,27 +42,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     []
   );
 
-  // check if user has active organization
   useEffect(() => {
-    if (orgId) {
-      return;
-    }
+    if (!isUserLoaded || !isOrganizationLoaded) return;
 
-    if (isOrgListLoaded && clerkUser) {
-      const hasOrgs = clerkUser.organizationMemberships.length > 0;
+    /**
+     * If the user didn't create any organization yet, or there is no current active organization(e.g. after the user the deleting or leaving their org),
+     * redirect to the organization list page.
+     *
+     * See https://clerk.com/docs/organizations/force-organizations#limit-access-using-the-clerk-middleware-helper
+     */
+    const isOnOrgListPage = window.location.pathname === ROUTES.SIGNUP_ORGANIZATION_LIST;
+    const isOnInvitationPage = window.location.pathname === ROUTES.INVITATION_ACCEPT;
 
-      if (hasOrgs) {
-        const firstOrg = clerkUser.organizationMemberships[0].organization;
-        setActive({ organization: firstOrg });
-      } else if (!window.location.href.includes(ROUTES.SIGNUP_ORGANIZATION_LIST)) {
-        redirectTo({ url: ROUTES.SIGNUP_ORGANIZATION_LIST });
+    if (clerkUser && !clerkOrganization && !isOnOrgListPage && !isOnInvitationPage) {
+      const pendingInvitationId = sessionStorage.getItem('pendingInvitationId');
+
+      if (pendingInvitationId) {
+        return redirectTo({ url: `${ROUTES.INVITATION_ACCEPT}?id=${pendingInvitationId}` });
       }
-    }
-  }, [setActive, isOrgListLoaded, clerkUser, orgId, redirectTo]);
 
-  const currentUser = useMemo(() => (clerkUser ? toUserEntity(clerkUser as UserResource) : undefined), [clerkUser]);
+      return redirectTo({ url: ROUTES.SIGNUP_ORGANIZATION_LIST });
+    }
+  }, [isUserLoaded, isOrganizationLoaded, clerkUser, clerkOrganization, redirectTo]);
+
+  const currentUser = useMemo(
+    () => (clerkUser ? toUserEntity(clerkUser as unknown as UserResource) : undefined),
+    [clerkUser]
+  );
   const currentOrganization = useMemo(
-    () => (clerkOrganization ? toOrganizationEntity(clerkOrganization) : undefined),
+    () => (clerkOrganization ? toOrganizationEntity(clerkOrganization as unknown as OrganizationResource) : undefined),
     [clerkOrganization]
   );
 

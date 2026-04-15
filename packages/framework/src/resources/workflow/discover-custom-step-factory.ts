@@ -1,31 +1,47 @@
 import { emptySchema } from '../../schemas';
-import type { Awaitable, CustomStep, DiscoverWorkflowOutput, StepType, StepOutput } from '../../types';
+import type {
+  Awaitable,
+  CustomStep,
+  DiscoverWorkflowOutput,
+  Schema,
+  StepOptions,
+  StepOutput,
+  StepType,
+} from '../../types';
 import { transformSchema } from '../../validators';
 import { discoverStep } from './discover-step';
 
-export function discoverCustomStepFactory(targetWorkflow: DiscoverWorkflowOutput, type: StepType): CustomStep {
+export async function discoverCustomStepFactory(
+  targetWorkflow: DiscoverWorkflowOutput,
+  type: StepType
+): Promise<CustomStep> {
   return async (stepId, resolve, options = {}) => {
     const controlSchema = options?.controlSchema || emptySchema;
     const outputSchema = options?.outputSchema || emptySchema;
 
-    discoverStep(targetWorkflow, stepId, {
+    const [transformedControlSchema, transformedOutputSchema] = await Promise.all([
+      transformSchema(controlSchema),
+      transformSchema(outputSchema),
+    ]);
+
+    await discoverStep(targetWorkflow, stepId, {
       stepId,
       type,
       controls: {
-        schema: transformSchema(controlSchema),
+        schema: transformedControlSchema,
         unknownSchema: controlSchema,
       },
       outputs: {
-        schema: transformSchema(outputSchema),
+        schema: transformedOutputSchema,
         unknownSchema: outputSchema,
       },
       results: {
-        schema: transformSchema(outputSchema),
+        schema: transformedOutputSchema,
         unknownSchema: outputSchema,
       },
       resolve: resolve as (controls: Record<string, unknown>) => Awaitable<Record<string, unknown>>,
       code: resolve.toString(),
-      options,
+      options: options as StepOptions<Schema, Record<string, unknown>>,
       providers: [],
     });
 
@@ -38,7 +54,6 @@ export function discoverCustomStepFactory(targetWorkflow: DiscoverWorkflowOutput
         },
       },
       // TODO: fix typing for `resolve` to use generic typings
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as Awaited<StepOutput<any>>;
   };
 }

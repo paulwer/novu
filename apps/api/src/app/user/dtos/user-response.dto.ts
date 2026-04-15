@@ -3,7 +3,7 @@ import { IUserEntity, JobTitleEnum } from '@novu/shared';
 
 export class ServicesHashesDto {
   @ApiProperty()
-  intercom?: string;
+  plain?: string;
 }
 
 export class UserResponseDto implements IUserEntity {

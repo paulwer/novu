@@ -1,32 +1,32 @@
-import { Types } from 'mongoose';
 import {
   BuilderFieldType,
   BuilderGroupValues,
-  ControlsDto,
+  ControlSchemas,
+  CustomDataType,
   FilterParts,
   IMessageFilter,
-  IMessageTemplate,
-  INotificationTemplate,
-  INotificationTemplateStep,
   INotificationTrigger,
   INotificationTriggerVariable,
   IPreferenceChannels,
-  IStepVariant,
   ITriggerReservedVariable,
   IWorkflowStepMetadata,
-  NotificationTemplateCustomData,
+  ResourceOriginEnum,
+  ResourceTypeEnum,
+  RuntimeIssue,
+  SeverityLevelEnum,
+  StepIssues,
   TriggerTypeEnum,
-  WorkflowOriginEnum,
-  WorkflowTypeEnum,
+  WorkflowStatusEnum,
 } from '@novu/shared';
-
-import { JSONSchema } from 'json-schema-to-ts';
+import { Types } from 'mongoose';
+import type { ChangePropsValueType } from '../../types';
+import type { EnvironmentId } from '../environment';
+import { MessageTemplateEntity } from '../message-template';
 import { NotificationGroupEntity } from '../notification-group';
 import type { OrganizationId } from '../organization';
-import type { EnvironmentId } from '../environment';
-import type { ChangePropsValueType } from '../../types';
+import { UserEntity } from '../user';
 
-export class NotificationTemplateEntity implements INotificationTemplate {
+export class NotificationTemplateEntity {
   _id: string;
 
   name: string;
@@ -37,10 +37,10 @@ export class NotificationTemplateEntity implements INotificationTemplate {
 
   draft: boolean;
 
-  /** @deprecated - use `Preferences` entity instead */
+  /** @deprecated - use `userPreferences` instead */
   preferenceSettings: IPreferenceChannels;
 
-  /** @deprecated - use `Preferences` entity instead */
+  /** @deprecated - use `userPreferences` instead */
   critical: boolean;
 
   tags: string[];
@@ -69,26 +69,48 @@ export class NotificationTemplateEntity implements INotificationTemplate {
 
   updatedAt?: string;
 
+  _updatedBy?: string;
+
   readonly notificationGroup?: NotificationGroupEntity;
+
+  readonly updatedBy?: UserEntity;
 
   isBlueprint: boolean;
 
   blueprintId?: string;
 
-  data?: NotificationTemplateCustomData;
+  data?: CustomDataType;
 
-  type?: WorkflowTypeEnum;
+  type?: ResourceTypeEnum;
 
-  origin?: WorkflowOriginEnum;
+  origin?: ResourceOriginEnum;
 
   rawData?: any;
 
   payloadSchema?: any;
+
+  validatePayload?: boolean;
+
+  isTranslationEnabled?: boolean;
+
+  issues: Record<string, RuntimeIssue[]>;
+
+  status?: WorkflowStatusEnum;
+
+  lastTriggeredAt?: string;
+
+  lastPublishedAt?: string;
+
+  _lastPublishedBy?: string;
+
+  readonly lastPublishedBy?: UserEntity;
+
+  severity?: SeverityLevelEnum;
 }
 
 export type NotificationTemplateDBModel = ChangePropsValueType<
   Omit<NotificationTemplateEntity, '_parentId'>,
-  '_environmentId' | '_organizationId' | '_creatorId' | '_notificationGroupId'
+  '_environmentId' | '_organizationId' | '_creatorId' | '_notificationGroupId' | '_updatedBy' | '_lastPublishedBy'
 > & {
   _parentId?: Types.ObjectId;
 };
@@ -105,12 +127,14 @@ export class NotificationTriggerEntity implements INotificationTrigger {
   reservedVariables?: ITriggerReservedVariable[];
 }
 
-export class StepVariantEntity implements IStepVariant {
+export class NotificationStepData {
   _id?: string;
 
   uuid?: string;
 
   stepId?: string;
+
+  issues?: StepIssues;
 
   name?: string;
 
@@ -123,7 +147,7 @@ export class StepVariantEntity implements IStepVariant {
     url: string;
   };
 
-  template?: IMessageTemplate;
+  template?: MessageTemplateEntity;
 
   filters?: StepFilter[];
 
@@ -134,19 +158,19 @@ export class StepVariantEntity implements IStepVariant {
   shouldStopOnFail?: boolean;
 
   bridgeUrl?: string;
-  /**
-   * Control variables for the step
-   * Same as ControlValues
+  /*
+   * controlVariables exists
+   * only on none production environment in order to provide stateless control variables on fly
    */
-  controlVariables?: ControlsDto;
-
-  controls?: {
-    schema: JSONSchema;
-  };
+  controlVariables?: Record<string, unknown>;
+  /**
+   * @deprecated This property is deprecated and will be removed in future versions.
+   * Use IMessageTemplate.controls
+   */
+  controls?: ControlSchemas;
 }
-
-export class NotificationStepEntity extends StepVariantEntity implements INotificationTemplateStep {
-  variants?: StepVariantEntity[];
+export class NotificationStepEntity extends NotificationStepData {
+  variants?: NotificationStepData[];
 }
 
 export class StepFilter implements IMessageFilter {

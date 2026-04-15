@@ -1,13 +1,42 @@
-import { PushRenderOutput } from '@novu/shared';
 import { Injectable } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { InstrumentUsecase, PinoLogger } from '@novu/application-generic';
+import { LocalizationResourceEnum, NotificationTemplateEntity } from '@novu/dal';
+import { PushRenderOutput } from '@novu/shared';
+import { BaseTranslationRendererUsecase } from './base-translation-renderer.usecase';
 import { RenderCommand } from './render-command';
 
-@Injectable()
-export class PushOutputRendererUsecase {
-  execute(renderCommand: RenderCommand): PushRenderOutput {
-    const subject = renderCommand.controlValues.subject as string;
-    const body = renderCommand.controlValues.body as string;
+export class PushOutputRendererCommand extends RenderCommand {
+  dbWorkflow: NotificationTemplateEntity;
+  locale?: string;
+}
 
-    return { subject, body };
+@Injectable()
+export class PushOutputRendererUsecase extends BaseTranslationRendererUsecase {
+  constructor(
+    protected moduleRef: ModuleRef,
+    protected logger: PinoLogger
+  ) {
+    super(moduleRef, logger);
+  }
+
+  @InstrumentUsecase()
+  async execute(renderCommand: PushOutputRendererCommand): Promise<PushRenderOutput> {
+    const { skip, ...outputControls } = renderCommand.controlValues ?? {};
+    const { _environmentId, _organizationId, _id: workflowId } = renderCommand.dbWorkflow;
+
+    const translatedControls = await this.processTranslations({
+      controls: outputControls,
+      variables: renderCommand.fullPayloadForRender,
+      environmentId: _environmentId,
+      organizationId: _organizationId,
+      resourceId: workflowId,
+      resourceType: LocalizationResourceEnum.WORKFLOW,
+      locale: renderCommand.locale,
+      organization: renderCommand.organization,
+      resourceEntity: renderCommand.dbWorkflow,
+    });
+
+    return translatedControls as any;
   }
 }

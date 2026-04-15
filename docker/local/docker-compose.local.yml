@@ -1,4 +1,3 @@
-
 services:
   api:
     build:
@@ -8,19 +7,7 @@ services:
     build:
       dockerfile: "./apps/worker/Dockerfile"
       context: "../../.."
-  web:
-    build:
-      dockerfile: "./apps/web/Dockerfile"
-      context: "../../.."
   ws:
     build:
       dockerfile: "./apps/ws/Dockerfile"
-      context: "../../.."
-  widget:
-    build:
-      dockerfile: "./apps/widget/Dockerfile"
-      context: "../../.."
-  embed:
-    build:
-      dockerfile: "./libs/embed/Dockerfile"
       context: "../../.."

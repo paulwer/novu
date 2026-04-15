@@ -1,38 +1,13 @@
-import {
-  AzureMetricsService,
-  GCPMetricsService,
-  AwsMetricsService,
-  MetricsService,
-  NewRelicMetricsService,
-} from './metrics.service';
+import { MetricsService, NewRelicMetricsService, OtelMetricsService } from './metrics.service';
 
 export const metricsServiceList = {
   provide: 'MetricsServices',
-  useFactory: (
-    newRelicMetricsService: NewRelicMetricsService,
-    gcsMetricsService: GCPMetricsService,
-    azureMetricsService: AzureMetricsService,
-    awsMetricsService: AwsMetricsService,
-  ) => {
-    const allMetricsServices = [
-      newRelicMetricsService,
-      gcsMetricsService,
-      azureMetricsService,
-      awsMetricsService,
-    ];
+  useFactory: (newRelicMetricsService: NewRelicMetricsService, otelMetricsService: OtelMetricsService) => {
+    const allMetricsServices = [newRelicMetricsService, otelMetricsService];
 
-    const activeMetricsServices = allMetricsServices.filter((service) =>
-      service.isActive(process.env),
-    );
-
-    return activeMetricsServices;
+    return allMetricsServices.filter((service) => service.isActive(process.env));
   },
-  inject: [
-    NewRelicMetricsService,
-    GCPMetricsService,
-    AzureMetricsService,
-    AwsMetricsService,
-  ],
+  inject: [NewRelicMetricsService, OtelMetricsService],
 };
 
-export { MetricsService };
+export { MetricsService, OtelMetricsService };

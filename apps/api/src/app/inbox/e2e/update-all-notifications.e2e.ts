@@ -1,22 +1,24 @@
-import { expect } from 'chai';
-import { UserSession } from '@novu/testing';
+import { Novu } from '@novu/api';
 import { MessageRepository, NotificationTemplateEntity, SubscriberEntity, SubscriberRepository } from '@novu/dal';
 import {
-  StepTypeEnum,
-  ChannelCTATypeEnum,
-  TemplateVariableTypeEnum,
   ActorTypeEnum,
-  SystemAvatarIconEnum,
   ButtonTypeEnum,
+  ChannelCTATypeEnum,
+  StepTypeEnum,
+  SystemAvatarIconEnum,
+  TemplateVariableTypeEnum,
 } from '@novu/shared';
+import { UserSession } from '@novu/testing';
+import { expect } from 'chai';
+import { initNovuClassSdk } from '../../shared/helpers/e2e/sdk/e2e-sdk.helper';
 
-describe('Update All Notifications - /inbox/notifications/{read,archive,read-archive} (POST)', async () => {
+describe('Update All Notifications - /inbox/notifications/{read,archive,read-archive} (POST) #novu-v2', async () => {
   let session: UserSession;
   let template: NotificationTemplateEntity;
   let subscriber: SubscriberEntity | null;
   const messageRepository = new MessageRepository();
   const subscriberRepository = new SubscriberRepository();
-
+  let novuClient: Novu;
   const updateAllNotifications = async ({
     action,
     tags,
@@ -33,11 +35,16 @@ describe('Update All Notifications - /inbox/notifications/{read,archive,read-arc
   const triggerEvent = async (templateToTrigger: NotificationTemplateEntity, times = 1) => {
     const promises: Array<Promise<unknown>> = [];
     for (let i = 0; i < times; i += 1) {
-      promises.push(session.triggerEvent(templateToTrigger.triggers[0].identifier, session.subscriberId));
+      promises.push(
+        novuClient.trigger({
+          workflowId: templateToTrigger.triggers[0].identifier,
+          to: { subscriberId: session.subscriberId },
+        })
+      );
     }
 
     await Promise.all(promises);
-    await session.awaitRunningJobs(templateToTrigger._id);
+    await session.waitForJobCompletion(templateToTrigger._id);
   };
 
   const removeUndefinedDeep = (obj) => {
@@ -56,7 +63,7 @@ describe('Update All Notifications - /inbox/notifications/{read,archive,read-arc
   beforeEach(async () => {
     session = new UserSession();
     await session.initialize();
-
+    novuClient = initNovuClassSdk(session);
     subscriber = await subscriberRepository.findBySubscriberId(session.environment._id, session.subscriberId);
     template = await session.createTemplate({
       noFeedId: true,
@@ -94,7 +101,7 @@ describe('Update All Notifications - /inbox/notifications/{read,archive,read-arc
     await triggerEvent(template, 3);
   });
 
-  it('should mark all unread notifications as read', async function () {
+  it('should mark all unread notifications as read', async () => {
     const allMessages = await messageRepository.find({
       _environmentId: session.environment._id,
       _subscriberId: subscriber?._id ?? '',
@@ -116,7 +123,7 @@ describe('Update All Notifications - /inbox/notifications/{read,archive,read-arc
     expect(allUpdatedMessages.every((el) => el.read)).to.be.true;
   });
 
-  it('should mark all unread notifications as read using tags', async function () {
+  it('should mark all unread notifications as read using tags', async () => {
     const tags = ['newsletter'];
     const templateWithTags = await session.createTemplate({
       noFeedId: true,
@@ -156,7 +163,7 @@ describe('Update All Notifications - /inbox/notifications/{read,archive,read-arc
     expect(newsletterMessages.every((el) => el.read)).to.be.true;
   });
 
-  it('should mark all notifications as archived', async function () {
+  it('should mark all notifications as archived', async () => {
     const allMessages = await messageRepository.find({
       _environmentId: session.environment._id,
       _subscriberId: subscriber?._id ?? '',
@@ -178,7 +185,7 @@ describe('Update All Notifications - /inbox/notifications/{read,archive,read-arc
     expect(allUpdatedMessages.every((el) => el.archived)).to.be.true;
   });
 
-  it('should mark all notifications as archived using tags', async function () {
+  it('should mark all notifications as archived using tags', async () => {
     const tags = ['newsletter'];
     const templateWithTags = await session.createTemplate({
       noFeedId: true,
@@ -218,7 +225,7 @@ describe('Update All Notifications - /inbox/notifications/{read,archive,read-arc
     expect(newsletterMessages.every((el) => el.archived)).to.be.true;
   });
 
-  it('should mark all read notifications as archived', async function () {
+  it('should mark all read notifications as archived', async () => {
     const allMessages = await messageRepository.find({
       _environmentId: session.environment._id,
       _subscriberId: subscriber?._id ?? '',
@@ -249,7 +256,7 @@ describe('Update All Notifications - /inbox/notifications/{read,archive,read-arc
     expect(allUpdatedMessages.every((el) => el.archived)).to.be.true;
   });
 
-  it('should mark all read notifications as archived using tags', async function () {
+  it('should mark all read notifications as archived using tags', async () => {
     const tags = ['newsletter'];
     const templateWithTags = await session.createTemplate({
       noFeedId: true,

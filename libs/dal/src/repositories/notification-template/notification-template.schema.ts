@@ -1,4 +1,4 @@
-import { WorkflowTypeEnum } from '@novu/shared';
+import { ResourceTypeEnum, SeverityLevelEnum } from '@novu/shared';
 import mongoose, { Schema } from 'mongoose';
 
 import { schemaOptions } from '../schema-default.options';
@@ -19,12 +19,13 @@ const variantSchemePart = {
     type: Schema.Types.Boolean,
     default: false,
   },
+  issues: Schema.Types.Mixed,
   uuid: Schema.Types.String,
   stepId: Schema.Types.String,
   name: Schema.Types.String,
   type: {
     type: Schema.Types.String,
-    default: WorkflowTypeEnum.REGULAR,
+    default: ResourceTypeEnum.REGULAR,
   },
   filters: [
     {
@@ -111,7 +112,7 @@ const notificationTemplateSchema = new Schema<NotificationTemplateDBModel>(
     },
     type: {
       type: Schema.Types.String,
-      default: WorkflowTypeEnum.REGULAR,
+      default: ResourceTypeEnum.REGULAR,
     },
     draft: {
       type: Schema.Types.Boolean,
@@ -200,6 +201,21 @@ const notificationTemplateSchema = new Schema<NotificationTemplateDBModel>(
     origin: {
       type: Schema.Types.String,
     },
+    status: {
+      type: Schema.Types.String,
+    },
+    lastTriggeredAt: {
+      type: Schema.Types.Date,
+      default: null,
+    },
+    lastPublishedAt: {
+      type: Schema.Types.Date,
+      default: null,
+    },
+    _lastPublishedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
     _environmentId: {
       type: Schema.Types.ObjectId,
       ref: 'Environment',
@@ -212,6 +228,10 @@ const notificationTemplateSchema = new Schema<NotificationTemplateDBModel>(
       type: Schema.Types.ObjectId,
       ref: 'User',
     },
+    _updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
     _parentId: {
       type: Schema.Types.ObjectId,
       ref: 'NotificationTemplate',
@@ -219,6 +239,20 @@ const notificationTemplateSchema = new Schema<NotificationTemplateDBModel>(
     data: Schema.Types.Mixed,
     rawData: Schema.Types.Mixed,
     payloadSchema: Schema.Types.Mixed,
+    validatePayload: {
+      type: Schema.Types.Boolean,
+      default: false,
+    },
+    isTranslationEnabled: {
+      type: Schema.Types.Boolean,
+      default: false,
+    },
+    issues: Schema.Types.Mixed,
+    severity: {
+      type: Schema.Types.String,
+      enum: SeverityLevelEnum,
+      default: SeverityLevelEnum.NONE,
+    },
   },
   { ...schemaOptions, minimize: false }
 );
@@ -237,11 +271,11 @@ notificationTemplateSchema.virtual('steps.variants.template', {
   justOne: true,
 });
 
-notificationTemplateSchema.path('steps').schema.set('toJSON', { virtuals: true });
-notificationTemplateSchema.path('steps').schema.set('toObject', { virtuals: true });
+notificationTemplateSchema.path('steps')?.schema?.set('toJSON', { virtuals: true });
+notificationTemplateSchema.path('steps')?.schema?.set('toObject', { virtuals: true });
 
-notificationTemplateSchema.path('steps.variants').schema.set('toJSON', { virtuals: true });
-notificationTemplateSchema.path('steps.variants').schema.set('toObject', { virtuals: true });
+notificationTemplateSchema.path('steps.variants')?.schema?.set('toJSON', { virtuals: true });
+notificationTemplateSchema.path('steps.variants')?.schema?.set('toObject', { virtuals: true });
 
 notificationTemplateSchema.virtual('notificationGroup', {
   ref: 'NotificationGroup',
@@ -250,23 +284,58 @@ notificationTemplateSchema.virtual('notificationGroup', {
   justOne: true,
 });
 
+notificationTemplateSchema.virtual('updatedBy', {
+  ref: 'User',
+  localField: '_updatedBy',
+  foreignField: '_id',
+  justOne: true,
+  select: '_id firstName lastName externalId',
+});
+
+notificationTemplateSchema.virtual('lastPublishedBy', {
+  ref: 'User',
+  localField: '_lastPublishedBy',
+  foreignField: '_id',
+  justOne: true,
+  select: '_id firstName lastName externalId',
+});
+
+notificationTemplateSchema.virtual('lastPublishedByUser', {
+  ref: 'User',
+  localField: '_lastPublishedBy',
+  foreignField: '_id',
+  justOne: true,
+  select: '_id firstName lastName externalId',
+});
+
+notificationTemplateSchema.index({
+  _environmentId: 1,
+  'triggers.identifier': 1,
+});
+
+notificationTemplateSchema.index({
+  _environmentId: 1,
+  _id: 1,
+});
+
+// TODO: Deprecate this index. Use the envId, triggerId instead
 notificationTemplateSchema.index({
   _organizationId: 1,
   'triggers.identifier': 1,
 });
 
+// TODO: Deprecate this index. Use the envId, triggerId instead
 notificationTemplateSchema.index({
   _environmentId: 1,
   name: 1,
 });
 
-notificationTemplateSchema.index({
-  _environmentId: 1,
-  'triggers.identifier': 1,
-  name: 1,
+notificationTemplateSchema.plugin(mongooseDelete, {
+  deletedAt: true,
+  deletedBy: true,
+  overrideMethods: 'all',
+  use$neOperator: false,
 });
-
-notificationTemplateSchema.plugin(mongooseDelete, { deletedAt: true, deletedBy: true, overrideMethods: 'all' });
 
 export const NotificationTemplate =
   (mongoose.models.NotificationTemplate as mongoose.Model<NotificationTemplateDBModel>) ||

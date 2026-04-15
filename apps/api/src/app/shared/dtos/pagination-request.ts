@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IPaginationParams } from '@novu/shared';
 import { Type } from 'class-transformer';
 import { IsInt, Max, Min } from 'class-validator';
-import { IPaginationParams } from '@novu/shared';
 
 import { Constructor } from '../types';
 
@@ -10,6 +10,7 @@ export function PaginationRequestDto(defaultLimit = 10, maxLimit = 100): Constru
     @ApiPropertyOptional({
       type: Number,
       required: false,
+      example: 0,
     })
     @Type(() => Number)
     @IsInt()
@@ -20,6 +21,7 @@ export function PaginationRequestDto(defaultLimit = 10, maxLimit = 100): Constru
       required: false,
       default: defaultLimit,
       maximum: maxLimit,
+      example: 10,
     })
     @Type(() => Number)
     @IsInt()

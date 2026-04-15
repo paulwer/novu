@@ -1,6 +1,6 @@
-import * as React from 'react';
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
-import { ChevronDownIcon } from '@radix-ui/react-icons';
+import * as React from 'react';
+import { RiArrowDownSLine } from 'react-icons/ri';
 
 import { cn } from '@/utils/ui';
 
@@ -28,15 +28,17 @@ const AccordionTrigger = React.forwardRef<React.ElementRef<typeof AccordionPrimi
       <AccordionPrimitive.Trigger
         ref={ref}
         className={cn(
-          'flex flex-1 items-center justify-between text-sm font-medium transition-all [&[data-state=open]>svg]:rotate-180',
+          'flex flex-1 items-center justify-between text-xs transition-all [&[data-state=open]>svg]:rotate-180',
           className
         )}
         {...props}
       >
-        {children}
-        {withChevron && (
-          <ChevronDownIcon className="text-muted-foreground h-4 w-4 shrink-0 transition-transform duration-200" />
-        )}
+        <>
+          {children}
+          {withChevron && (
+            <RiArrowDownSLine className="text-foreground-400 h-4 w-4 shrink-0 transition-transform duration-200" />
+          )}
+        </>
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
   )
@@ -52,9 +54,9 @@ const AccordionContent = React.forwardRef<
     className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm"
     {...props}
   >
-    <div className={cn('pb-4 pt-0', className)}>{children}</div>
+    <div className={cn('pt-0', className)}>{children}</div>
   </AccordionPrimitive.Content>
 ));
 AccordionContent.displayName = AccordionPrimitive.Content.displayName;
 
-export { Accordion, AccordionItem, AccordionTrigger, AccordionContent };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger };

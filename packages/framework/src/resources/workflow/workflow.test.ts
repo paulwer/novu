@@ -1,4 +1,4 @@
-import { it, describe, beforeEach, expect, vi, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MissingSecretKeyError } from '../../errors';
 import { workflow } from './workflow.resource';
 
@@ -99,7 +99,7 @@ describe('workflow function', () => {
   });
 
   it('should include the defined preferences', async () => {
-    const { definition } = workflow(
+    const { discover } = workflow(
       'setup-workflow',
       async ({ step }) => {
         await step.email('send-email', async () => ({
@@ -116,6 +116,8 @@ describe('workflow function', () => {
       }
     );
 
+    const definition = await discover();
+
     expect(definition.preferences).to.deep.equal({
       channels: {
         email: { enabled: true },
@@ -124,7 +126,7 @@ describe('workflow function', () => {
   });
 
   it('should include the defined name', async () => {
-    const { definition } = workflow(
+    const { discover } = workflow(
       'workflow-with-name',
       async ({ step }) => {
         await step.email('send-email', async () => ({
@@ -137,11 +139,13 @@ describe('workflow function', () => {
       }
     );
 
+    const definition = await discover();
+
     expect(definition.name).to.equal('My Workflow');
   });
 
   it('should include the defined description', async () => {
-    const { definition } = workflow(
+    const { discover } = workflow(
       'workflow-with-description',
       async ({ step }) => {
         await step.email('send-email', async () => ({
@@ -153,6 +157,8 @@ describe('workflow function', () => {
         description: 'My Workflow Description',
       }
     );
+
+    const definition = await discover();
 
     expect(definition.description).to.equal('My Workflow Description');
   });
@@ -342,7 +348,7 @@ describe('workflow function', () => {
           payload: {},
           to: 'test@test.com',
         })
-      ).rejects.toThrowError(
+      ).rejects.toThrow(
         `Workflow with id: \`test-workflow\` has invalid \`payload\`. Please provide the correct payload`
       );
     });
@@ -487,6 +493,116 @@ describe('workflow function', () => {
             Authorization: `ApiKey ${process.env.NOVU_SECRET_KEY}`,
           },
           method: 'DELETE',
+        })
+      );
+    });
+
+    it('should handle various context payload formats', async () => {
+      const testWorkflow = workflow('test-workflow', async ({ step }) => {
+        await step.custom('custom', async () => ({
+          foo: 'bar',
+        }));
+      });
+
+      const fetchMock = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => {
+          return Promise.resolve({
+            transactionId: '123',
+          });
+        },
+      });
+      global.fetch = fetchMock;
+
+      await testWorkflow.trigger({
+        to: 'test@test.com',
+        payload: {
+          name: 'John',
+        },
+        context: {
+          // Simple string value
+          user: 'john-doe',
+
+          // Rich object with full data
+          tenant: {
+            id: 'org-acme',
+            data: { name: 'Acme Corp', plan: 'enterprise', region: 'us-east' },
+          },
+          // Rich object without data field
+          app: {
+            id: 'jira',
+          },
+        },
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching('/events/trigger'),
+        expect.objectContaining({
+          body: JSON.stringify({
+            name: 'test-workflow',
+            to: 'test@test.com',
+            payload: {
+              name: 'John',
+            },
+            context: {
+              user: 'john-doe',
+              tenant: {
+                id: 'org-acme',
+                data: { name: 'Acme Corp', plan: 'enterprise', region: 'us-east' },
+              },
+              app: {
+                id: 'jira',
+              },
+            },
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `ApiKey ${process.env.NOVU_SECRET_KEY}`,
+          },
+          method: 'POST',
+        })
+      );
+    });
+
+    it('should work without context properties', async () => {
+      const testWorkflow = workflow('test-workflow', async ({ step }) => {
+        await step.custom('custom', async () => ({
+          foo: 'bar',
+        }));
+      });
+
+      const fetchMock = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => {
+          return Promise.resolve({
+            transactionId: '123',
+          });
+        },
+      });
+      global.fetch = fetchMock;
+
+      await testWorkflow.trigger({
+        to: 'test@test.com',
+        payload: {
+          name: 'John',
+        },
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching('/events/trigger'),
+        expect.objectContaining({
+          body: JSON.stringify({
+            name: 'test-workflow',
+            to: 'test@test.com',
+            payload: {
+              name: 'John',
+            },
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `ApiKey ${process.env.NOVU_SECRET_KEY}`,
+          },
+          method: 'POST',
         })
       );
     });

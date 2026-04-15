@@ -1,57 +1,101 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import {
-  CreateWorkflow,
+  BuildStepDataUsecase,
+  BuildStepIssuesUsecase,
+  BuildVariableSchemaUsecase,
+  ControlValueSanitizerService,
+  CreateVariablesObject,
+  CreateWorkflowV0,
+  DeletePreferencesUseCase,
   GetPreferences,
-  UpdateWorkflow,
+  GetWorkflowByIdsUseCase,
+  GetWorkflowUseCase,
+  GetWorkflowWithPreferencesUseCase,
+  MockDataGeneratorService,
+  PayloadMergerService,
+  PreviewErrorHandler,
+  PreviewPayloadProcessorService,
+  PreviewUsecase,
+  ResourceValidatorService,
+  TierRestrictionsValidateUsecase,
+  UpdateWorkflowV0,
   UpsertControlValuesUseCase,
   UpsertPreferences,
+  UpsertWorkflowUseCase,
 } from '@novu/application-generic';
-import { SharedModule } from '../shared/shared.module';
-import { MessageTemplateModule } from '../message-template/message-template.module';
-import { ChangeModule } from '../change/change.module';
+import { CommunityOrganizationRepository } from '@novu/dal';
 import { AuthModule } from '../auth/auth.module';
-import { IntegrationModule } from '../integrations/integrations.module';
-import { WorkflowController } from './workflow.controller';
-import { UpsertWorkflowUseCase } from './usecases/upsert-workflow/upsert-workflow.usecase';
-import { GetWorkflowUseCase } from './usecases/get-workflow/get-workflow.usecase';
-import { ListWorkflowsUseCase } from './usecases/list-workflows/list-workflow.usecase';
-import { DeleteWorkflowUseCase } from './usecases/delete-workflow/delete-workflow.usecase';
-import { GetWorkflowByIdsUseCase } from './usecases/get-workflow-by-ids/get-workflow-by-ids.usecase';
-import { SyncToEnvironmentUseCase } from './usecases/sync-to-environment/sync-to-environment.usecase';
-import { GetStepSchemaUseCase } from '../step-schemas/usecases/get-step-schema/get-step-schema.usecase';
 import { BridgeModule } from '../bridge';
-import { GeneratePreviewUsecase } from './usecases/generate-preview/generate-preview.usecase';
-import { CreateMockPayloadUseCase } from './usecases/placeholder-enrichment/payload-preview-value-generator.usecase';
-import { ExtractDefaultsUsecase } from './usecases/get-default-values-from-schema/extract-defaults.usecase';
-import { CollectPlaceholdersFromTipTapSchemaUsecase } from './usecases/placeholder-enrichment/collect-placeholders-from-tip-tap-schema.usecase';
-import { TransformPlaceholderMapUseCase } from './usecases/placeholder-enrichment/transform-placeholder.usecase';
-import { WorkflowTestDataUseCase } from './usecases/test-data/test-data.usecase';
+import { ChangeModule } from '../change/change.module';
+import { IntegrationModule } from '../integrations/integrations.module';
+import { LayoutsV2Module } from '../layouts-v2/layouts.module';
+import { MessageTemplateModule } from '../message-template/message-template.module';
+import { OutboundWebhooksModule } from '../outbound-webhooks/outbound-webhooks.module';
+import { SharedModule } from '../shared/shared.module';
+import { StepResolversModule } from '../step-resolvers/step-resolvers.module';
+import { DeleteWorkflowUseCase } from '../workflows-v1/usecases/delete-workflow/delete-workflow.usecase';
+
+import {
+  BuildWorkflowTestDataUseCase,
+  ListWorkflowsUseCase,
+  SyncToEnvironmentUseCase,
+  TestHttpEndpointUsecase,
+} from './usecases';
+
+import { DuplicateWorkflowUseCase } from './usecases/duplicate-workflow/duplicate-workflow.usecase';
+import { PatchWorkflowUsecase } from './usecases/patch-workflow';
+import { WorkflowController } from './workflow.controller';
+
+const DAL_REPOSITORIES = [CommunityOrganizationRepository];
+
+const MODULES = [
+  SharedModule,
+  MessageTemplateModule,
+  ChangeModule,
+  AuthModule,
+  BridgeModule,
+  IntegrationModule,
+  LayoutsV2Module,
+  OutboundWebhooksModule.forRoot(),
+  StepResolversModule,
+];
 
 @Module({
-  imports: [SharedModule, MessageTemplateModule, ChangeModule, AuthModule, BridgeModule, IntegrationModule],
+  imports: MODULES,
   controllers: [WorkflowController],
   providers: [
-    CreateWorkflow,
-    UpdateWorkflow,
+    ...DAL_REPOSITORIES,
+    CreateWorkflowV0,
+    UpdateWorkflowV0,
     UpsertWorkflowUseCase,
-    GetWorkflowUseCase,
     ListWorkflowsUseCase,
     DeleteWorkflowUseCase,
     UpsertPreferences,
+    DeletePreferencesUseCase,
     UpsertControlValuesUseCase,
     GetPreferences,
     GetWorkflowByIdsUseCase,
+    GetWorkflowWithPreferencesUseCase,
     SyncToEnvironmentUseCase,
-    GetStepSchemaUseCase,
-    GeneratePreviewUsecase,
+    BuildStepDataUsecase,
+    PreviewUsecase,
+    BuildWorkflowTestDataUseCase,
     GetWorkflowUseCase,
-    GetPreferences,
-    CreateMockPayloadUseCase,
-    ExtractDefaultsUsecase,
-    CollectPlaceholdersFromTipTapSchemaUsecase,
-    TransformPlaceholderMapUseCase,
-    WorkflowTestDataUseCase,
+    DuplicateWorkflowUseCase,
+    BuildVariableSchemaUsecase,
+    PatchWorkflowUsecase,
+    CreateVariablesObject,
+    BuildStepIssuesUsecase,
+    ResourceValidatorService,
+    TierRestrictionsValidateUsecase,
+    ControlValueSanitizerService,
+    PayloadMergerService,
+    PreviewPayloadProcessorService,
+    MockDataGeneratorService,
+    PreviewErrorHandler,
+    TestHttpEndpointUsecase,
   ],
+  exports: [UpsertWorkflowUseCase, SyncToEnvironmentUseCase, GetWorkflowUseCase, DeleteWorkflowUseCase],
 })
 export class WorkflowModule implements NestModule {
   configure(consumer: MiddlewareConsumer): MiddlewareConsumer | void {}

@@ -1,30 +1,6 @@
-import type { ListWorkflowResponse } from '@novu/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { FaCode } from 'react-icons/fa6';
-import {
-  RiBookMarkedLine,
-  RiDeleteBin2Line,
-  RiGitPullRequestFill,
-  RiMore2Fill,
-  RiPauseCircleLine,
-  RiPlayCircleLine,
-  RiPulseFill,
-  RiRouteFill,
-} from 'react-icons/ri';
-import { createSearchParams, Link, useLocation, useSearchParams } from 'react-router-dom';
-import { getV2 } from '@/api/api.client';
-import { DefaultPagination } from '@/components/default-pagination';
-import { Badge, BadgeContent } from '@/components/primitives/badge';
-import { Button, buttonVariants } from '@/components/primitives/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/primitives/dropdown-menu';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/primitives/select';
+import { DirectionEnum, ListWorkflowResponse } from '@novu/shared';
+import { RiMore2Fill } from 'react-icons/ri';
+import { useSearchParams } from 'react-router-dom';
 import { Skeleton } from '@/components/primitives/skeleton';
 import {
   Table,
@@ -33,247 +9,181 @@ import {
   TableFooter,
   TableHead,
   TableHeader,
+  TableHeadSortDirection,
   TableRow,
 } from '@/components/primitives/table';
-import TruncatedText from '@/components/truncated-text';
-import { WorkflowCloud } from '@/components/workflow-cloud';
-import { WorkflowStatus } from '@/components/workflow-status';
-import { WorkflowSteps } from '@/components/workflow-steps';
-import { WorkflowTags } from '@/components/workflow-tags';
-import { useEnvironment } from '@/context/environment/hooks';
-import { WorkflowOriginEnum, WorkflowStatusEnum } from '@/utils/enums';
-import { QueryKeys } from '@/utils/query-keys';
-import { buildRoute, LEGACY_ROUTES, ROUTES } from '@/utils/routes';
-import { CreateWorkflowButton } from '@/components/create-workflow-button';
+import { TablePaginationFooter } from '@/components/primitives/table-pagination-footer';
+import { WorkflowListEmpty } from '@/components/workflow-list-empty';
+import { WorkflowRow } from '@/components/workflow-row';
+import { ServerErrorPage } from '@/pages/server-error-page';
 
-export const WorkflowList = () => {
-  const { currentEnvironment } = useEnvironment();
+export type SortableColumn = 'name' | 'updatedAt' | 'lastTriggeredAt';
+
+interface WorkflowListProps {
+  data?: ListWorkflowResponse;
+  isLoading?: boolean;
+  isError?: boolean;
+  limit?: number;
+  orderBy?: SortableColumn;
+  orderDirection?: TableHeadSortDirection;
+  hasActiveFilters?: boolean;
+  onClearFilters?: () => void;
+  onPageSizeChange?: (pageSize: number) => void;
+}
+
+interface WorkflowListSkeletonProps {
+  limit: number;
+}
+
+function WorkflowListSkeleton({ limit }: WorkflowListSkeletonProps) {
+  return (
+    <>
+      {new Array(limit).fill(0).map((_, index) => (
+        <TableRow key={index}>
+          <TableCell className="flex flex-col gap-1 font-medium">
+            <Skeleton className="h-5 w-[20ch]" />
+            <Skeleton className="h-3 w-[15ch] rounded-full" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-[6ch] rounded-full" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-[8ch] rounded-full" />
+          </TableCell>
+          <TableCell>
+            <Skeleton className="h-5 w-[7ch] rounded-full" />
+          </TableCell>
+          <TableCell className="text-foreground-600 text-sm font-medium">
+            <Skeleton className="h-5 w-[14ch] rounded-full" />
+          </TableCell>
+          <TableCell className="text-foreground-600 text-sm font-medium">
+            <Skeleton className="h-5 w-[14ch] rounded-full" />
+          </TableCell>
+          <TableCell className="text-foreground-600 text-sm font-medium">
+            <RiMore2Fill className="size-4 opacity-50" />
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
+export function WorkflowList({
+  data,
+  isLoading,
+  isError,
+  limit = 10,
+  orderBy,
+  orderDirection,
+  hasActiveFilters,
+  onClearFilters,
+  onPageSizeChange,
+}: WorkflowListProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
 
-  const hrefFromOffset = (offset: number) => {
-    return `${location.pathname}?${createSearchParams({
-      ...searchParams,
-      offset: offset.toString(),
-    })}`;
-  };
-  const setLimit = (limit: number) => {
-    setSearchParams((searchParams) => {
-      searchParams.set('limit', limit.toString());
-      return searchParams;
+  const offset = parseInt(searchParams.get('offset') || '0');
+  const currentPage = Math.floor(offset / limit) + 1;
+  const totalPages = Math.ceil((data?.totalCount || 0) / limit);
+
+  const navigateToPage = (newPage: number) => {
+    const newOffset = (newPage - 1) * limit;
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev);
+      newParams.set('offset', newOffset.toString());
+      return newParams;
     });
   };
 
-  const offset = parseInt(searchParams.get('offset') || '0');
-  const limit = parseInt(searchParams.get('limit') || '12');
-  const workflowsQuery = useQuery({
-    queryKey: [QueryKeys.fetchWorkflows, currentEnvironment?._id, { limit, offset }],
-    queryFn: async () => {
-      const { data } = await getV2<{ data: ListWorkflowResponse }>(`/workflows?limit=${limit}&offset=${offset}`);
-      return data;
-    },
-    placeholderData: keepPreviousData,
-  });
-  const currentPage = Math.floor(offset / limit) + 1;
+  const handlePreviousPage = () => navigateToPage(Math.max(1, currentPage - 1));
+  const handleNextPage = () => navigateToPage(Math.min(totalPages, currentPage + 1));
 
-  if (workflowsQuery.isError) {
-    return null;
-  }
+  const handlePageSizeChange = (newPageSize: number) => {
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev);
+      newParams.set('limit', newPageSize.toString());
+      newParams.set('offset', '0'); // Reset to first page when changing page size
+      return newParams;
+    });
+    onPageSizeChange?.(newPageSize);
+  };
 
-  if (!workflowsQuery.isPending && workflowsQuery.data.totalCount === 0) {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-6">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <WorkflowCloud className="drop-shadow" />
-          <span className="text-foreground-900 block font-medium">
-            No workflows exist, create workflows to orchestrate notifications
-          </span>
-          <p className="text-foreground-600 max-w-[55ch] text-sm">
-            Workflows in Novu handle event-driven notifications across multiple channels in a single, version-controlled
-            flow, with the ability to manage preference for each subscriber.
-          </p>
-        </div>
+  const toggleSort = (column: SortableColumn) => {
+    const newDirection =
+      column === orderBy
+        ? orderDirection === DirectionEnum.DESC
+          ? DirectionEnum.ASC
+          : DirectionEnum.DESC
+        : DirectionEnum.DESC;
+    searchParams.set('orderDirection', newDirection);
+    searchParams.set('orderBy', column);
+    setSearchParams(searchParams);
+  };
 
-        <div className="flex items-center justify-center gap-6">
-          <Link
-            to={'https://docs.novu.co/concepts/workflows'}
-            className={buttonVariants({ variant: 'link', className: 'text-foreground-600 gap-1' })}
-          >
-            <RiBookMarkedLine className="size-4" />
-            View docs
-          </Link>
-          <CreateWorkflowButton asChild>
-            <Button variant="primary" className="gap-2">
-              <RiRouteFill className="size-5" />
-              Create workflow
-            </Button>
-          </CreateWorkflowButton>
-        </div>
-      </div>
-    );
+  if (isError) return <ServerErrorPage />;
+
+  if (!isLoading && data?.totalCount === 0) {
+    return <WorkflowListEmpty emptySearchResults={hasActiveFilters} onClearFilters={onClearFilters} />;
   }
 
   return (
-    <div className="flex h-full flex-col px-6 py-2">
+    <div className="flex h-full flex-col">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Workflows</TableHead>
+            <TableHead
+              sortable
+              sortDirection={orderBy === 'name' ? orderDirection : false}
+              onSort={() => toggleSort('name')}
+            >
+              Workflows
+            </TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Steps</TableHead>
             <TableHead>Tags</TableHead>
-            <TableHead>Last updated</TableHead>
+            <TableHead
+              sortable
+              sortDirection={orderBy === 'lastTriggeredAt' ? orderDirection : false}
+              onSort={() => toggleSort('lastTriggeredAt')}
+            >
+              Last triggered
+            </TableHead>
+            <TableHead
+              sortable
+              sortDirection={orderBy === 'updatedAt' ? orderDirection : false}
+              onSort={() => toggleSort('updatedAt')}
+            >
+              Last updated
+            </TableHead>
+
             <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {workflowsQuery.isPending ? (
-            <>
-              {new Array(limit).fill(0).map((_, index) => (
-                <TableRow key={index}>
-                  <TableCell className="flex flex-col gap-1 font-medium">
-                    <Skeleton className="h-5 w-[20ch]" />
-                    <Skeleton className="h-3 w-[15ch] rounded-full" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-[6ch] rounded-full" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-[8ch] rounded-full" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-[7ch] rounded-full" />
-                  </TableCell>
-                  <TableCell className="text-foreground-600 text-sm font-medium">
-                    <Skeleton className="h-5 w-[14ch] rounded-full" />
-                  </TableCell>
-                  <TableCell className="text-foreground-600 text-sm font-medium">
-                    <RiMore2Fill className="size-4 opacity-50" />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </>
+          {isLoading ? (
+            <WorkflowListSkeleton limit={limit} />
           ) : (
             <>
-              {workflowsQuery.data.workflows.map((workflow) => {
-                const isV1Workflow = workflow.origin === WorkflowOriginEnum.NOVU_CLOUD_V1;
-                const workflowLink = isV1Workflow
-                  ? buildRoute(LEGACY_ROUTES.EDIT_WORKFLOW, {
-                      workflowSlug: workflow.slug,
-                    })
-                  : buildRoute(ROUTES.EDIT_WORKFLOW, {
-                      environmentId: currentEnvironment?._id ?? '',
-                      workflowSlug: workflow.slug,
-                    });
-                return (
-                  <TableRow key={workflow._id} className="relative">
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-1">
-                        {workflow.origin === WorkflowOriginEnum.EXTERNAL && (
-                          <Badge className="rounded-full px-1.5" variant="warning-light">
-                            <BadgeContent variant="warning">
-                              <FaCode className="size-3" />
-                            </BadgeContent>
-                          </Badge>
-                        )}
-                        {/**
-                         * reloadDocument is needed for v1 workflows to reload the document when the user navigates to the workflow editor
-                         */}
-                        <Link to={workflowLink} reloadDocument={isV1Workflow}>
-                          <TruncatedText className="cursor-pointer" text={workflow.name} />
-                        </Link>
-                      </div>
-                      <TruncatedText className="text-foreground-400 font-code block text-xs" text={workflow._id} />
-                    </TableCell>
-                    <TableCell>
-                      <WorkflowStatus status={workflow.status} />
-                    </TableCell>
-                    <TableCell>
-                      <WorkflowSteps steps={workflow.stepTypeOverviews} />
-                    </TableCell>
-                    <TableCell>
-                      <WorkflowTags tags={workflow.tags || []} />
-                    </TableCell>
-                    <TableCell className="text-foreground-600 text-sm font-medium">
-                      {new Date(workflow.updatedAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </TableCell>
-                    <TableCell className="w-1">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <RiMore2Fill />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-56">
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem>
-                              <RiPlayCircleLine />
-                              Trigger workflow
-                            </DropdownMenuItem>
-                            <DropdownMenuItem disabled={workflow.status === WorkflowStatusEnum.ERROR}>
-                              <RiGitPullRequestFill />
-                              Promote to Production
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <RiPulseFill />
-                              View activity
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem>
-                              <RiPauseCircleLine />
-                              Pause workflow
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">
-                              <RiDeleteBin2Line />
-                              Delete workflow
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {data?.workflows.map((workflow) => (
+                <WorkflowRow key={workflow._id} workflow={workflow} />
+              ))}
             </>
           )}
         </TableBody>
-        {workflowsQuery.data && limit < workflowsQuery.data.totalCount && (
+        {data && (
           <TableFooter>
             <TableRow>
-              <TableCell colSpan={5}>
-                <div className="flex items-center justify-between">
-                  {workflowsQuery.data ? (
-                    <span className="text-foreground-600 block text-sm font-normal">
-                      Page {currentPage} of {Math.ceil(workflowsQuery.data.totalCount / limit)}
-                    </span>
-                  ) : (
-                    <Skeleton className="h-5 w-[20ch]" />
-                  )}
-                  {workflowsQuery.data ? (
-                    <DefaultPagination
-                      hrefFromOffset={hrefFromOffset}
-                      totalCount={workflowsQuery.data.totalCount}
-                      limit={limit}
-                      offset={offset}
-                    />
-                  ) : (
-                    <Skeleton className="h-5 w-32" />
-                  )}
-                  <Select onValueChange={(v) => setLimit(parseInt(v))} defaultValue={limit.toString()}>
-                    <SelectTrigger className="w-fit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="12">12 / page</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <TableCell colSpan={7} className="p-0">
+                <TablePaginationFooter
+                  pageSize={limit}
+                  currentPageItemsCount={data.workflows.length}
+                  onPreviousPage={handlePreviousPage}
+                  onNextPage={handleNextPage}
+                  onPageSizeChange={handlePageSizeChange}
+                  hasPreviousPage={currentPage > 1}
+                  hasNextPage={currentPage < totalPages}
+                  itemName="workflows"
+                  totalCount={data.totalCount}
+                />
               </TableCell>
             </TableRow>
           </TableFooter>
@@ -281,4 +191,4 @@ export const WorkflowList = () => {
       </Table>
     </div>
   );
-};
+}
