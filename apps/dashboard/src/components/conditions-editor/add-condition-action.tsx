@@ -2,9 +2,19 @@ import { RiAddFill } from 'react-icons/ri';
 import { ActionWithRulesAndAddersProps } from 'react-querybuilder';
 
 import { Button } from '@/components/primitives/button';
+import { useConditionsEditorContext } from './conditions-editor-context';
 
-export const AddConditionAction = ({ label, title, rules, handleOnClick, context }: ActionWithRulesAndAddersProps) => {
-  if (rules && rules.length >= 10) {
+export const AddConditionAction = ({
+  label,
+  title,
+  path,
+  handleOnClick,
+  context,
+  disabled,
+}: ActionWithRulesAndAddersProps) => {
+  const { canAddToGroup } = useConditionsEditorContext();
+
+  if (disabled || !canAddToGroup(path)) {
     return null;
   }
 
@@ -15,6 +25,10 @@ export const AddConditionAction = ({ label, title, rules, handleOnClick, context
       size="2xs"
       className="bg-transparent"
       onClick={(e) => {
+        if (!canAddToGroup(path)) {
+          return;
+        }
+
         handleOnClick(e);
         context?.saveForm();
       }}

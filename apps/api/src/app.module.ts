@@ -10,6 +10,7 @@ import { isClerkEnabled } from '@novu/shared';
 import { SentryModule } from '@sentry/nestjs/setup';
 import packageJson from '../package.json';
 import { ActivityModule } from './app/activity/activity.module';
+import { AgentsModule } from './app/agents/agents.module';
 import { AnalyticsModule } from './app/analytics/analytics.module';
 import { AuthModule } from './app/auth/auth.module';
 import { BlueprintModule } from './app/blueprint/blueprint.module';
@@ -17,8 +18,11 @@ import { BridgeModule } from './app/bridge/bridge.module';
 import { ChangeModule } from './app/change/change.module';
 import { ChannelConnectionsModule } from './app/channel-connections/channel-connections.module';
 import { ChannelEndpointsModule } from './app/channel-endpoints/channel-endpoints.module';
+import { CliAuthModule } from './app/cli-auth/cli-auth.module';
+import { ConnectModule } from './app/connect/connect.module';
 import { ContentTemplatesModule } from './app/content-templates/content-templates.module';
 import { ContextsModule } from './app/contexts/contexts.module';
+import { DomainsModule } from './app/domains/domains.module';
 import { EnvironmentVariablesModule } from './app/environment-variables/environment-variables.module';
 import { EnvironmentsModuleV1 } from './app/environments-v1/environments-v1.module';
 import { EnvironmentsModule } from './app/environments-v2/environments.module';
@@ -26,6 +30,7 @@ import { EventsModule } from './app/events/events.module';
 import { ExecutionDetailsModule } from './app/execution-details/execution-details.module';
 import { FeedsModule } from './app/feeds/feeds.module';
 import { HealthModule } from './app/health/health.module';
+import { HumanModule } from './app/human/human.module';
 import { InboundParseModule } from './app/inbound-parse/inbound-parse.module';
 import { InboxModule } from './app/inbox/inbox.module';
 import { IntegrationModule } from './app/integrations/integrations.module';
@@ -36,6 +41,7 @@ import { LayoutsV2Module } from './app/layouts-v2/layouts.module';
 import { MessagesModule } from './app/messages/messages.module';
 import { NotificationGroupsModule } from './app/notification-groups/notification-groups.module';
 import { NotificationModule } from './app/notifications/notification.module';
+import { NovuContextModule } from './app/novu-context/novu-context.module';
 import { OrganizationModule } from './app/organization/organization.module';
 import { OutboundWebhooksModule } from './app/outbound-webhooks/outbound-webhooks.module';
 import { PartnerIntegrationsModule } from './app/partner-integrations/partner-integrations.module';
@@ -57,6 +63,7 @@ import { TestingModule } from './app/testing/testing.module';
 import { TopicsV1Module } from './app/topics-v1/topics-v1.module';
 import { TopicsV2Module } from './app/topics-v2/topics-v2.module';
 import { UserModule } from './app/user/user.module';
+import { WellKnownModule } from './app/well-known/well-known.module';
 import { WidgetsModule } from './app/widgets/widgets.module';
 import { WorkflowOverridesModule } from './app/workflow-overrides/workflow-overrides.module';
 import { WorkflowModuleV1 } from './app/workflows-v1/workflow-v1.module';
@@ -80,6 +87,19 @@ const enterpriseImports = (): Array<Type | DynamicModule | Promise<DynamicModule
 
     if (require('@novu/ee-ai')?.AiModule) {
       modules.push(require('@novu/ee-ai')?.AiModule);
+    }
+
+    // LLM Gateway controllers parked for this PR — keeping the code so we
+    // can re-enable later by uncommenting this block.
+    // if (require('@novu/ee-ai')?.LlmGatewayModule) {
+    //   modules.push(require('@novu/ee-ai')?.LlmGatewayModule);
+    // }
+
+    if (require('@novu/ee-api')?.ConversationsModule) {
+      modules.push({
+        module: class ConversationsModuleHost {},
+        imports: [SharedModule, require('@novu/ee-api').ConversationsModule],
+      });
     }
 
     modules.push(SupportModule);
@@ -116,6 +136,11 @@ const baseModules: Array<Type | DynamicModule | Promise<DynamicModule> | Forward
   ContentTemplatesModule,
   OrganizationModule,
   ActivityModule,
+  AgentsModule,
+  HumanModule,
+  ConnectModule,
+  NovuContextModule,
+  DomainsModule.forRoot(),
   UserModule,
   IntegrationModule,
   InternalModule,
@@ -127,7 +152,6 @@ const baseModules: Array<Type | DynamicModule | Promise<DynamicModule> | Forward
   LayoutsV1Module,
   LayoutsV2Module,
   MessagesModule,
-  PartnerIntegrationsModule,
   TopicsV1Module,
   TopicsV2Module,
   BlueprintModule,
@@ -144,7 +168,9 @@ const baseModules: Array<Type | DynamicModule | Promise<DynamicModule> | Forward
   NovuModule,
   ChannelConnectionsModule,
   ChannelEndpointsModule,
+  CliAuthModule,
   StepResolversModule,
+  WellKnownModule,
 ];
 
 const enterpriseModules = enterpriseImports();
@@ -152,6 +178,8 @@ const enterpriseModules = enterpriseImports();
 if (!isClerkEnabled()) {
   const communityModules = [InvitesModule];
   baseModules.push(...communityModules);
+} else if (process.env.IS_SELF_HOSTED !== 'true') {
+  baseModules.push(PartnerIntegrationsModule);
 }
 
 const modules = baseModules.concat(enterpriseModules);

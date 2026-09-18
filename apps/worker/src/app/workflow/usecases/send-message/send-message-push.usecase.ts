@@ -38,6 +38,7 @@ import {
   InboxCountTypeEnum,
   ProvidersIdEnum,
   PushProviderIdEnum,
+  safeJsonStringify,
   TriggerOverrides,
   WebhookEventEnum,
   WebhookObjectTypeEnum,
@@ -46,7 +47,7 @@ import { IPushOptions } from '@novu/stateless';
 import { addBreadcrumb } from '@sentry/node';
 import { merge } from 'lodash';
 import { PlatformException } from '../../../shared/utils';
-import { SendMessageBase } from './send-message.base';
+import { combineProviderOverrides, SendMessageBase } from './send-message.base';
 import { SendMessageChannelCommand } from './send-message-channel.command';
 import { SendMessageResult, SendMessageStatus } from './send-message-type.usecase';
 
@@ -70,6 +71,21 @@ export const SUBSCRIBER_ERROR_PATTERNS: string[] = [
 
 export function isSubscriberError(errorMessage: string): boolean {
   return SUBSCRIBER_ERROR_PATTERNS.some((pattern) => errorMessage.includes(pattern));
+}
+
+/** Safe for Axios / Node errors that may contain circular socket references. */
+export function serializePushProviderError(error: unknown): string {
+  const serialized = safeJsonStringify(error);
+
+  if (serialized !== '{}') {
+    return serialized;
+  }
+
+  if (error instanceof Error) {
+    return JSON.stringify({ message: error.message, name: error.name });
+  }
+
+  return JSON.stringify({ message: String(error ?? '') });
 }
 
 interface IPushProviderOverride {
@@ -531,9 +547,7 @@ export class SendMessagePush extends SendMessageBase {
       channelType: ChannelTypeEnum.PUSH,
       providerId: channel.providerId,
       userId: command.userId,
-      filterData: {
-        tenant: command.job.tenant,
-      },
+      filterData: this.getIntegrationFilterData(command),
     });
 
     if (!integration) {
@@ -600,10 +614,11 @@ export class SendMessagePush extends SendMessageBase {
         title: (bridgeOutputs as PushOutput)?.subject || title,
         content: (bridgeOutputs as PushOutput)?.body || content,
         payload: { ...command.payload, __nvMessageId: message._id },
+        messageId: message._id,
         overrides,
         subscriber,
         step,
-        bridgeProviderData: this.combineOverrides(
+        bridgeProviderData: combineProviderOverrides(
           command.bridgeData,
           command.overrides,
           command.step.stepId,
@@ -642,7 +657,7 @@ export class SendMessagePush extends SendMessageBase {
       Logger.log(
         {
           jobId: command.jobId,
-          errorContent: JSON.stringify(e) || e?.message,
+          errorContent: serializePushProviderError(e),
           code: e?.code,
           message: e?.message,
           details: e?.details,
@@ -660,7 +675,7 @@ export class SendMessagePush extends SendMessageBase {
         e
       );
 
-      const raw = JSON.stringify(e) !== JSON.stringify({}) ? JSON.stringify(e) : JSON.stringify(e.message);
+      const raw = serializePushProviderError(e);
 
       try {
         await this.createExecutionDetailsError(DetailEnum.PROVIDER_ERROR, command.job, {
@@ -761,7 +776,7 @@ export class SendMessagePush extends SendMessageBase {
       deviceTokens,
       content: this.storeContent() ? content : null,
       title,
-      payload: command.payload as never,
+      payload: this.payloadToPersist(command, command.payload) as never,
       overrides: overrides as never,
       providerId: integration.providerId,
       _jobId: command.jobId,
@@ -819,9 +834,7 @@ export class SendMessagePush extends SendMessageBase {
         channelType: ChannelTypeEnum.PUSH,
         providerId: providerOverride.providerId,
         userId: command.userId,
-        filterData: {
-          tenant: command.job.tenant,
-        },
+        filterData: this.getIntegrationFilterData(command),
       });
 
       if (!integration) continue;

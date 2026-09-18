@@ -4,6 +4,7 @@ import { bold, cyan, green, red } from 'picocolors';
 import type { InitialReturnValue } from 'prompts';
 import prompts from 'prompts';
 import { AnalyticService } from '../../services/analytics.service';
+import { isLoopbackHost, requestApiJson } from '../shared/novu-http';
 import { createApp } from './create-app';
 import { isFolderEmpty } from './helpers/is-folder-empty';
 import { validateNpmName } from './helpers/validate-pkg';
@@ -28,6 +29,7 @@ export interface IInitCommandOptions {
   secretKey?: string;
   projectPath?: string;
   apiUrl: string;
+  template?: string;
 }
 
 export async function init(program: IInitCommandOptions, anonymousId?: string): Promise<void> {
@@ -48,12 +50,13 @@ export async function init(program: IInitCommandOptions, anonymousId?: string): 
   }
 
   if (!projectPath) {
+    const defaultName = 'my-novu-app';
     const res = await prompts({
       onState: onPromptState,
       type: 'text',
       name: 'path',
       message: 'What is your project named?',
-      initial: 'my-novu-app',
+      initial: defaultName,
       validate: (name: string) => {
         const validation = validateNpmName(path.basename(path.resolve(name)));
         if (validation.valid) {
@@ -100,37 +103,28 @@ export async function init(program: IInitCommandOptions, anonymousId?: string): 
     program.secretKey = '';
   } else {
     try {
-      const response = await fetch(`${program.apiUrl}/v1/users/me`, {
-        headers: {
-          Authorization: `ApiKey ${program.secretKey}`,
-        },
+      const authHeaders = { Authorization: `ApiKey ${program.secretKey}` };
+      const user = await requestApiJson<{ _id: string }>(program.apiUrl, '/users/me', { headers: authHeaders });
+
+      userId = user._id;
+
+      const environment = await requestApiJson<{ identifier: string }>(program.apiUrl, '/environments/me', {
+        headers: authHeaders,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch api key details');
-      }
-
-      const user = await response.json();
-
-      userId = user.data?._id;
-
-      const integrationsResponse = await fetch(`${program.apiUrl}/v1/environments/me`, {
-        headers: {
-          Authorization: `ApiKey ${program.secretKey}`,
-        },
-      });
-
-      const environment = await integrationsResponse.json();
-      applicationId = environment.data.identifier;
+      applicationId = environment.identifier;
 
       analytics.alias({
         previousId: anonymousId,
         userId,
       });
     } catch (error) {
-      console.error(
-        `Failed to verify your secret key against ${program.apiUrl}. For EU instances use --api-url https://eu.api.novu.co or provide the correct secret key`
-      );
+      const message = error instanceof Error ? error.message : String(error);
+
+      console.error(`Failed to verify your secret key against ${program.apiUrl}: ${message}`);
+
+      if (!isLoopbackHost(program.apiUrl)) {
+        console.error('For EU instances use --api-url https://eu.api.novu.co.');
+      }
 
       process.exit(1);
     }
@@ -148,11 +142,40 @@ export async function init(program: IInitCommandOptions, anonymousId?: string): 
     process.exit(1);
   }
 
+  const supportedTemplates = ['notifications', 'chat-sdk'] as const;
+  let templateChoice = program.template;
+
+  if (templateChoice && !supportedTemplates.includes(templateChoice as (typeof supportedTemplates)[number])) {
+    console.error(`Invalid template "${program.template}". Supported templates: ${supportedTemplates.join(', ')}`);
+    process.exit(1);
+  }
+
+  if (!templateChoice) {
+    const res = await prompts({
+      onState: onPromptState,
+      type: 'select',
+      name: 'template',
+      message: 'What type of Novu app do you want to create?',
+      choices: [
+        { title: 'Notifications', value: 'notifications', description: 'Workflows, email templates, and in-app inbox' },
+        {
+          title: 'Chat SDK',
+          value: 'chat-sdk',
+          description: 'Multi-channel chat bot with Chat SDK and @novu/chat-sdk-adapter',
+        },
+      ],
+      initial: 0,
+    });
+
+    templateChoice = res.template;
+  }
+
+  if (!templateChoice) {
+    console.error('No template selected.');
+    process.exit(1);
+  }
+
   const preferences = {} as Record<string, boolean | string>;
-  /**
-   * If the user does not provide the necessary flags, prompt them for whether
-   * to use TS or JS.
-   */
   const defaults: typeof preferences = {
     typescript: true,
     eslint: true,
@@ -175,11 +198,13 @@ export async function init(program: IInitCommandOptions, anonymousId?: string): 
   await createApp({
     appPath: resolvedProjectPath,
     packageManager: 'npm',
+    templateChoice,
     typescript: defaults.typescript as boolean,
     eslint: defaults.eslint as boolean,
     srcDir: defaults.srcDir as boolean,
     importAlias: defaults.importAlias as string,
     secretKey: program.secretKey,
+    apiUrl: program.apiUrl,
     applicationId,
     userId,
   });

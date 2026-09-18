@@ -3,7 +3,6 @@ import { JwtModule } from '@nestjs/jwt';
 import {
   analyticsService,
   CacheServiceHealthIndicator,
-  CloudflareSchedulerService,
   ComputeJobWaitDurationService,
   CreateExecutionDetails,
   cacheService,
@@ -20,8 +19,10 @@ import {
   InMemoryLRUCacheService,
   InvalidateCacheService,
   LoggerModule,
+  NotificationPayloadService,
   QueuesModule,
   RequestLogRepository,
+  SafeOutboundHttpService,
   StepRunRepository,
   storageService,
   TraceLogRepository,
@@ -30,12 +31,16 @@ import {
   WorkflowRunRepository,
 } from '@novu/application-generic';
 import {
+  AgentIntegrationRepository,
+  AgentRepository,
   ChangeRepository,
   CommunityMemberRepository,
   CommunityOrganizationRepository,
   CommunityUserRepository,
   ControlValuesRepository,
   DalService,
+  DomainRepository,
+  DomainRouteRepository,
   EnvironmentRepository,
   EnvironmentVariableRepository,
   ExecutionDetailsRepository,
@@ -111,6 +116,10 @@ const DAL_MODELS = [
   ControlValuesRepository,
   PreferencesRepository,
   EnvironmentVariableRepository,
+  AgentRepository,
+  AgentIntegrationRepository,
+  DomainRepository,
+  DomainRouteRepository,
 ];
 
 const dalService = {
@@ -141,13 +150,13 @@ const PROVIDERS = [
   analyticsService,
   cacheService,
   CacheServiceHealthIndicator,
-  CloudflareSchedulerService,
   ComputeJobWaitDurationService,
   dalService,
   DalServiceHealthIndicator,
   featureFlagsService,
   InMemoryLRUCacheService,
   InvalidateCacheService,
+  NotificationPayloadService,
   storageService,
   ...DAL_MODELS,
   CreateExecutionDetails,
@@ -156,6 +165,7 @@ const PROVIDERS = [
   ExecuteStepResolverRequest,
   GetDecryptedSecretKey,
   HttpClientService,
+  SafeOutboundHttpService,
   ...ANALYTICS_PROVIDERS,
 ];
 

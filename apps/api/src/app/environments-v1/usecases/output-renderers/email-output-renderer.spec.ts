@@ -13,6 +13,7 @@ import {
 import { expect } from 'chai';
 import sinon from 'sinon';
 import { GetOrganizationSettings } from '../../../organization/usecases/get-organization-settings/get-organization-settings.usecase';
+import { ControlsTranslationService } from './controls-translation.service';
 import { EmailOutputRendererCommand, EmailOutputRendererUsecase } from './email-output-renderer.usecase';
 import { FullPayloadForRender } from './render-command';
 
@@ -101,10 +102,15 @@ describe('EmailOutputRendererUsecase', () => {
     jobRepositoryMock = sinon.createStubInstance(JobRepository);
     createExecutionDetailsMock = sinon.createStubInstance(CreateExecutionDetails);
 
+    const controlsTranslationService = new ControlsTranslationService(
+      moduleRef as unknown as ModuleRef,
+      pinoLoggerMock as unknown as PinoLogger
+    );
+
     emailOutputRendererUsecase = new EmailOutputRendererUsecase(
       getOrganizationSettingsMock as any,
-      moduleRef as any,
       pinoLoggerMock as any,
+      controlsTranslationService,
       controlValuesRepositoryMock as any,
       getLayoutUseCaseV0 as any,
       jobRepositoryMock as any,
@@ -275,6 +281,83 @@ describe('EmailOutputRendererUsecase', () => {
 
       expect(result).to.have.property('subject', 'Welcome');
       expect(result.body).to.include('Hello valued customer');
+    });
+  });
+
+  describe('sender and preheader metadata', () => {
+    const buildPreheaderCommand = (
+      preheader: string,
+      controlValues: Record<string, unknown> = {}
+    ): EmailOutputRendererCommand => ({
+      dbWorkflow: mockDbWorkflow,
+      controlValues: {
+        subject: 'Welcome Email',
+        preheader,
+        body: JSON.stringify({
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Unique body marker' }],
+            },
+          ],
+        } satisfies MailyJSONContent),
+        ...controlValues,
+      },
+      fullPayloadForRender: mockFullPayload,
+      stepId: 'fake_step_id',
+    });
+
+    it('should render the preheader once', async () => {
+      const result = await emailOutputRendererUsecase.execute(buildPreheaderCommand('Peek inside'));
+
+      expect(result.body.split('Peek inside')).to.have.lengthOf(2);
+    });
+
+    it('should not expand $& as a special replacement pattern', async () => {
+      const result = await emailOutputRendererUsecase.execute(buildPreheaderCommand('$&'));
+
+      expect(result.body).to.include('$&');
+      expect(result.body.match(/<body\b/gi) || []).to.have.lengthOf(1);
+    });
+
+    it("should not expand $' as a special replacement pattern", async () => {
+      const result = await emailOutputRendererUsecase.execute(buildPreheaderCommand("$'"));
+
+      expect(result.body).to.include("$'");
+      expect(result.body.split('Unique body marker')).to.have.lengthOf(2);
+    });
+
+    it('should translate subject, sender name, and preheader only', async () => {
+      translateStub.callsFake(async (command: { content: string }) =>
+        command.content
+          .replace('{{t.subject}}', 'Willkommen')
+          .replace('{{t.senderName}}', 'Acme Sicherheit')
+          .replace('{{t.preheader}}', 'Ein Blick hinein')
+      );
+
+      const result = await emailOutputRendererUsecase.execute(
+        buildPreheaderCommand('{{t.preheader}}', {
+          subject: '{{t.subject}}',
+          from: { email: '{{t.senderEmail}}', name: '{{t.senderName}}' },
+          replyTo: '{{t.replyTo}}',
+        })
+      );
+
+      expect(result.subject).to.equal('Willkommen');
+      expect(result.from).to.deep.equal({ email: '{{t.senderEmail}}', name: 'Acme Sicherheit' });
+      expect(result.replyTo).to.equal('{{t.replyTo}}');
+      expect(result.preheader).to.equal('Ein Blick hinein');
+      expect(result.body).to.include('Ein Blick hinein');
+    });
+
+    it('should preserve an empty translated preheader', async () => {
+      translateStub.callsFake(async (command: { content: string }) => command.content.replace('{{t.preheader}}', ''));
+
+      const result = await emailOutputRendererUsecase.execute(buildPreheaderCommand('{{t.preheader}}'));
+
+      expect(result).to.have.property('preheader', '');
+      expect(result.body).to.not.include('{{t.preheader}}');
     });
   });
 
@@ -943,6 +1026,127 @@ describe('EmailOutputRendererUsecase', () => {
       const matches = result.body.match(/Item item/g);
       expect(matches).to.have.length(3);
     });
+
+    it('should render repeat block over steps.<digest>.events whose payload contains apostrophes', async () => {
+      const mockTipTapNode: MailyJSONContent = {
+        type: 'doc',
+        content: [
+          {
+            type: 'repeat',
+            attrs: {
+              each: 'steps.digest-step.events',
+              isUpdatingKey: false,
+              showIfKey: null,
+            },
+            content: [
+              {
+                type: 'paragraph',
+                attrs: {
+                  textAlign: 'left',
+                },
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Order: ',
+                  },
+                  {
+                    type: 'variable',
+                    attrs: {
+                      id: 'steps.digest-step.events.payload.title',
+                      label: null,
+                      fallback: null,
+                      required: false,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const renderCommand: EmailOutputRendererCommand = {
+        dbWorkflow: mockDbWorkflow,
+        controlValues: {
+          subject: 'Digest Events Repeat Regression',
+          body: JSON.stringify(mockTipTapNode),
+          disableOutputSanitization: true,
+        },
+        fullPayloadForRender: {
+          ...mockFullPayload,
+          steps: {
+            'digest-step': {
+              events: [{ payload: { title: "John's order" } }, { payload: { title: "it's a test" } }],
+            },
+          },
+        },
+        stepId: 'fake_step_id',
+      };
+
+      const result = await emailOutputRendererUsecase.execute(renderCommand);
+
+      expect(result.body).to.include("Order: John's order");
+      expect(result.body).to.include("Order: it's a test");
+
+      const matches = result.body.match(/Order: /g);
+      expect(matches).to.have.length(2);
+    });
+
+    it('should render repeat block over payload.items when string values contain apostrophes', async () => {
+      const mockTipTapNode: MailyJSONContent = {
+        type: 'doc',
+        content: [
+          {
+            type: 'repeat',
+            attrs: {
+              each: 'payload.names',
+              isUpdatingKey: false,
+              showIfKey: null,
+            },
+            content: [
+              {
+                type: 'paragraph',
+                attrs: {
+                  textAlign: 'left',
+                },
+                content: [
+                  {
+                    type: 'variable',
+                    attrs: {
+                      id: 'payload.names',
+                      label: null,
+                      fallback: null,
+                      required: false,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const renderCommand: EmailOutputRendererCommand = {
+        dbWorkflow: mockDbWorkflow,
+        controlValues: {
+          subject: 'Apostrophe primitives repeat',
+          body: JSON.stringify(mockTipTapNode),
+          disableOutputSanitization: true,
+        },
+        fullPayloadForRender: {
+          ...mockFullPayload,
+          payload: {
+            names: ["O'Brien", 'Jane'],
+          },
+        },
+        stepId: 'fake_step_id',
+      };
+
+      const result = await emailOutputRendererUsecase.execute(renderCommand);
+
+      expect(result.body).to.include("O'Brien");
+      expect(result.body).to.include('Jane');
+    });
   });
 
   describe('node attrs and marks attrs hydration', () => {
@@ -1432,6 +1636,35 @@ describe('EmailOutputRendererUsecase', () => {
       // Should still attempt to fetch layout but gracefully handle null result
       expect(getLayoutUseCaseV0.execute.calledOnce).to.be.true;
       expect(controlValuesRepositoryMock.findOne.calledOnce).to.be.true;
+    });
+
+    it('should interpolate environment variables inside the layout body', async () => {
+      const layoutWithEnvVar =
+        '<html><body><img src="{{env.CDN_BASE_URL}}/logo.png" /><div>{{content}}</div></body></html>';
+      controlValuesRepositoryMock.findOne.resolves({
+        controls: { email: { body: layoutWithEnvVar } },
+      } as any);
+
+      const renderCommand: EmailOutputRendererCommand = {
+        dbWorkflow: mockDbWorkflow,
+        controlValues: {
+          subject: 'Layout Env Var Test',
+          body: simpleBodyContent,
+          layoutId: 'test_layout_id',
+        },
+        fullPayloadForRender: {
+          ...mockFullPayload,
+          payload: { name: 'John' },
+          env: { CDN_BASE_URL: 'https://cdn.example.com', name: 'Production', type: 'prod' },
+        },
+        stepId: 'fake_step_id',
+      };
+
+      const result = await emailOutputRendererUsecase.execute(renderCommand);
+
+      expect(result.body).to.include('https://cdn.example.com/logo.png');
+      expect(result.body).to.not.include('{{env.CDN_BASE_URL}}');
+      expect(result.body).to.include('Step content John');
     });
   });
 

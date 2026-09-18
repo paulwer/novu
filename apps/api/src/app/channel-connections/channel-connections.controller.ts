@@ -5,7 +5,6 @@ import {
   Delete,
   Get,
   HttpCode,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -13,11 +12,12 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { ExternalApiAccessible, FeatureFlagsService, RequirePermissions } from '@novu/application-generic';
-import { ApiRateLimitCategoryEnum, FeatureFlagsKeysEnum, PermissionsEnum, UserSessionData } from '@novu/shared';
+import { ExternalApiAccessible, RequirePermissions } from '@novu/application-generic';
+import { ApiRateLimitCategoryEnum, PermissionsEnum, UserSessionData } from '@novu/shared';
 import { RequireAuthentication } from '../auth/framework/auth.decorator';
 import { ThrottlerCategory } from '../rate-limiting/guards/throttler.decorator';
 import { ApiCommonResponses, ApiResponse } from '../shared/framework/response.decorator';
+import { KeylessAccessible } from '../shared/framework/swagger/keyless.security';
 import { SdkGroupName, SdkMethodName } from '../shared/framework/swagger/sdk.decorators';
 import { UserSession } from '../shared/framework/user.decorator';
 import { CreateChannelConnectionRequestDto } from './dtos/create-channel-connection-request.dto';
@@ -50,21 +50,8 @@ export class ChannelConnectionsController {
     private readonly createChannelConnectionUsecase: CreateChannelConnection,
     private readonly updateChannelConnectionUsecase: UpdateChannelConnection,
     private readonly deleteChannelConnectionUsecase: DeleteChannelConnection,
-    private readonly featureFlagsService: FeatureFlagsService,
     private readonly listChannelConnectionsUsecase: ListChannelConnections
   ) {}
-
-  private async checkFeatureEnabled(user: UserSessionData) {
-    const isEnabled = await this.featureFlagsService.getFlag({
-      key: FeatureFlagsKeysEnum.IS_SLACK_TEAMS_ENABLED,
-      defaultValue: false,
-      organization: { _id: user.organizationId },
-    });
-
-    if (!isEnabled) {
-      throw new NotFoundException('Feature not enabled');
-    }
-  }
 
   @Get()
   @ApiOperation({
@@ -75,12 +62,11 @@ export class ChannelConnectionsController {
   @SdkMethodName('list')
   @RequirePermissions(PermissionsEnum.INTEGRATION_READ)
   @ExternalApiAccessible()
+  @KeylessAccessible()
   async listChannelConnections(
     @UserSession() user: UserSessionData,
     @Query() query: ListChannelConnectionsQueryDto
   ): Promise<ListChannelConnectionsResponseDto> {
-    await this.checkFeatureEnabled(user);
-
     const result = await this.listChannelConnectionsUsecase.execute(
       ListChannelConnectionsCommand.create({
         user,
@@ -91,6 +77,10 @@ export class ChannelConnectionsController {
         orderBy: query.orderBy || 'createdAt',
         includeCursor: query.includeCursor,
         subscriberId: query.subscriberId,
+        // Preserve the historical admin behavior where a `subscriberId` filter
+        // returns only that subscriber's own connections (never shared), unless
+        // the caller explicitly asks for a different scope.
+        connectionMode: query.connectionMode ?? (query.subscriberId ? 'subscriber' : undefined),
         contextKeys: query.contextKeys,
         channel: query.channel,
         providerId: query.providerId,
@@ -102,8 +92,8 @@ export class ChannelConnectionsController {
       data: result.data.map(mapChannelConnectionEntityToDto),
       next: result.next,
       previous: result.previous,
-      totalCount: result.totalCount!,
-      totalCountCapped: result.totalCountCapped!,
+      totalCount: result.totalCount ?? 0,
+      totalCountCapped: result.totalCountCapped ?? false,
     };
   }
 
@@ -120,8 +110,6 @@ export class ChannelConnectionsController {
     @UserSession() user: UserSessionData,
     @Body() body: CreateChannelConnectionRequestDto
   ): Promise<GetChannelConnectionResponseDto> {
-    await this.checkFeatureEnabled(user);
-
     const channelConnection = await this.createChannelConnectionUsecase.execute(
       CreateChannelConnectionCommand.create({
         environmentId: user.environmentId,
@@ -130,6 +118,7 @@ export class ChannelConnectionsController {
         integrationIdentifier: body.integrationIdentifier,
         subscriberId: body.subscriberId,
         context: body.context,
+        connectionMode: body.connectionMode,
         workspace: body.workspace,
         auth: body.auth,
       })
@@ -152,8 +141,6 @@ export class ChannelConnectionsController {
     @UserSession() user: UserSessionData,
     @Param('identifier') identifier: string
   ): Promise<GetChannelConnectionResponseDto> {
-    await this.checkFeatureEnabled(user);
-
     const channelConnection = await this.getChannelConnectionUsecase.execute(
       GetChannelConnectionCommand.create({
         environmentId: user.environmentId,
@@ -180,8 +167,6 @@ export class ChannelConnectionsController {
     @Param('identifier') identifier: string,
     @Body() body: UpdateChannelConnectionRequestDto
   ): Promise<GetChannelConnectionResponseDto> {
-    await this.checkFeatureEnabled(user);
-
     const channelConnection = await this.updateChannelConnectionUsecase.execute(
       UpdateChannelConnectionCommand.create({
         environmentId: user.environmentId,
@@ -209,8 +194,6 @@ export class ChannelConnectionsController {
     @UserSession() user: UserSessionData,
     @Param('identifier') identifier: string
   ): Promise<void> {
-    await this.checkFeatureEnabled(user);
-
     await this.deleteChannelConnectionUsecase.execute(
       DeleteChannelConnectionCommand.create({
         environmentId: user.environmentId,

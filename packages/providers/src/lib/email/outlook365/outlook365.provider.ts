@@ -83,6 +83,9 @@ export class Outlook365Provider extends BaseProvider implements IEmailProvider {
       subject: options.subject,
       html: options.html,
       text: options.text,
+      ...(options.cc?.length ? { cc: options.cc } : {}),
+      ...(options.bcc?.length ? { bcc: options.bcc } : {}),
+      ...(options.alternatives?.length ? { alternatives: options.alternatives } : {}),
       attachments: options.attachments?.map((attachment) => ({
         filename: attachment.name,
         content: attachment.file,
@@ -95,6 +98,10 @@ export class Outlook365Provider extends BaseProvider implements IEmailProvider {
 
     if (options.replyTo) {
       sendMailOptions.replyTo = options.replyTo;
+    }
+
+    if (options.headers && Object.keys(options.headers).length > 0) {
+      sendMailOptions.headers = options.headers;
     }
 
     return sendMailOptions;

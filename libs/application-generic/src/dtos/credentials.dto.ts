@@ -1,8 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ICredentials } from '@novu/shared';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsObject, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 import { TransformToBoolean } from '../decorators/to-boolean';
+
+/** Lowercase letters, digits and dashes; 1-32 chars; no leading/trailing dash. */
+const AGENT_EMAIL_SLUG_PREFIX_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
+
+/** Allowed interpretations of the email webhook HMAC secret key when signing. */
+export const HMAC_SECRET_KEY_ENCODINGS = ['text', 'base64', 'hex'] as const;
 
 export class CredentialsDto implements ICredentials {
   @ApiPropertyOptional()
@@ -19,6 +25,17 @@ export class CredentialsDto implements ICredentials {
   @IsString()
   @IsOptional()
   secretKey?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Email webhook: how `secretKey` is interpreted when signing webhook calls. ' +
+      "`text` signs with the raw UTF-8 bytes; `base64`/`hex` decode it to binary first (e.g. for AWS KMS).",
+    enum: [...HMAC_SECRET_KEY_ENCODINGS],
+  })
+  @IsString()
+  @IsIn(HMAC_SECRET_KEY_ENCODINGS)
+  @IsOptional()
+  hmacSecretKeyEncoding?: (typeof HMAC_SECRET_KEY_ENCODINGS)[number];
 
   @ApiPropertyOptional()
   @IsString()
@@ -155,6 +172,11 @@ export class CredentialsDto implements ICredentials {
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
+  configurationSetName?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
   apiKeyRequestHeader?: string;
 
   @ApiPropertyOptional()
@@ -251,4 +273,81 @@ export class CredentialsDto implements ICredentials {
   @IsOptional()
   @IsString()
   AppIOBaseUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  signingSecret?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  outboundIntegrationId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  outboundConnectedAt?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "ISO timestamp marking Layer-2 What's next completion (Connected badge + guide hide). " +
+      'WhatsApp Business: stamped on post-connect Access Token rotation or manual confirm.',
+  })
+  @IsOptional()
+  @IsString()
+  whatsNextCompletedAt?: string;
+
+  @ApiPropertyOptional()
+  @TransformToBoolean()
+  @IsBoolean()
+  @IsOptional()
+  useFromAddressOverride?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateIf((_, v) => typeof v === 'string' && v.trim().length > 0)
+  @IsEmail()
+  fromAddressOverride?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Agent default shared inbox slug prefix used in `{emailSlugPrefix}-{agentId}@<shared-domain>`. ' +
+      'Only meaningful on the NovuAgent email integration.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(AGENT_EMAIL_SLUG_PREFIX_REGEX, {
+    message: 'emailSlugPrefix must be 1-32 lowercase letters, digits or dashes, and must not start or end with a dash',
+  })
+  emailSlugPrefix?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Claude Managed Agents: ID of the Anthropic environment tied to this integration. ' +
+      'Hydrated by the API at integration provisioning time.',
+  })
+  @IsString()
+  @IsOptional()
+  externalEnvironmentId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Claude Managed Agents: ID of the Anthropic vault (`vlt_…`) tied to this integration. ' +
+      'Hydrated by the API at integration provisioning time and used to push OAuth-completed ' +
+      'MCP credentials to the per-vault credentials API.',
+  })
+  @IsString()
+  @IsOptional()
+  externalVaultId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Claude Managed Agents: id of the Anthropic workspace used in console deep links. ' +
+      "Defaults to `'default'` (the Default Workspace). " +
+      'Set this when the API key is scoped to a custom workspace (e.g. `wrkspc_…`).',
+  })
+  @IsString()
+  @IsOptional()
+  externalWorkspaceId?: string;
 }

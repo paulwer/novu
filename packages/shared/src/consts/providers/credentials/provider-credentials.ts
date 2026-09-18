@@ -1,4 +1,5 @@
 import { CredentialsKeyEnum } from '../../../types';
+import { AWS_CLAUDE_COMMERCIAL_REGIONS } from '../../aws-claude-regions';
 import { IConfigCredential } from '../provider.interface';
 
 const mailConfigBase: IConfigCredential[] = [
@@ -232,6 +233,16 @@ export const resendConfig: IConfigCredential[] = [
   ...mailConfigBase,
 ];
 
+export const anypostConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ApiKey,
+    displayName: 'API Key',
+    type: 'string',
+    required: true,
+  },
+  ...mailConfigBase,
+];
+
 export const mailtrapConfig: IConfigCredential[] = [
   {
     key: CredentialsKeyEnum.ApiKey,
@@ -312,6 +323,13 @@ export const sesConfig: IConfigCredential[] = [
     displayName: 'Region',
     type: 'string',
     required: true,
+  },
+  {
+    key: CredentialsKeyEnum.ConfigurationSetName,
+    displayName: 'Configuration Set Name',
+    description: 'The name of the SES Configuration Set to apply to sent emails',
+    type: 'string',
+    required: false,
   },
   ...mailConfigBase,
 ];
@@ -480,6 +498,18 @@ export const twilioConfig: IConfigCredential[] = [
     type: 'string',
     required: true,
   },
+  {
+    key: CredentialsKeyEnum.Region,
+    displayName: 'Data residency region',
+    description: 'Select EU if your Twilio account uses EU data residency (IE1). Use region-specific credentials.',
+    type: 'dropdown',
+    required: false,
+    value: 'us',
+    dropdown: [
+      { name: 'US (default)', value: 'us' },
+      { name: 'EU (Ireland)', value: 'eu' },
+    ],
+  },
   ...smsConfigBase,
 ];
 
@@ -496,7 +526,7 @@ export const messagebirdConfig: IConfigCredential[] = [
 export const slackConfigLegacy: IConfigCredential[] = [
   {
     key: CredentialsKeyEnum.ApplicationId,
-    displayName: 'Application Id',
+    displayName: 'App ID',
     type: 'string',
     required: true,
   },
@@ -509,6 +539,13 @@ export const slackConfigLegacy: IConfigCredential[] = [
   {
     key: CredentialsKeyEnum.SecretKey,
     displayName: 'Client Secret',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.SigningSecret,
+    displayName: 'Signing Secret',
+    description: 'Slack app Signing Secret, used for verifying inbound webhook requests',
     type: 'string',
     required: true,
   },
@@ -530,7 +567,7 @@ export const slackConfigLegacy: IConfigCredential[] = [
 export const slackConfig: IConfigCredential[] = [
   {
     key: CredentialsKeyEnum.ApplicationId,
-    displayName: 'Application Id',
+    displayName: 'App ID',
     type: 'string',
     required: true,
   },
@@ -543,6 +580,13 @@ export const slackConfig: IConfigCredential[] = [
   {
     key: CredentialsKeyEnum.SecretKey,
     displayName: 'Client Secret',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.SigningSecret,
+    displayName: 'Signing Secret',
+    description: 'Slack app Signing Secret, used for verifying inbound webhook requests',
     type: 'string',
     required: true,
   },
@@ -558,22 +602,22 @@ export const slackConfig: IConfigCredential[] = [
 export const msTeamsConfig: IConfigCredential[] = [
   {
     key: CredentialsKeyEnum.ClientId,
-    displayName: 'Client ID',
-    description: 'Azure Bot Application (client) ID',
+    displayName: 'Microsoft App ID',
+    description: 'From Azure Bot resource → Configuration, or App Registration → Overview (Application client ID)',
     type: 'string',
     required: false,
   },
   {
     key: CredentialsKeyEnum.SecretKey,
     displayName: 'Client Secret',
-    description: 'Azure Bot Client Secret value',
+    description: 'Secret value from App Registration → Certificates & secrets → New client secret',
     type: 'string',
     required: false,
   },
   {
     key: CredentialsKeyEnum.TenantId,
-    displayName: 'Tenant ID',
-    description: 'Azure Bot Tenant ID',
+    displayName: 'Directory (tenant) ID',
+    description: 'From App Registration → Overview (Directory tenant ID)',
     type: 'string',
     required: false,
   },
@@ -871,7 +915,7 @@ export const brazeEmailConfig: IConfigCredential[] = [
   },
   {
     key: CredentialsKeyEnum.AppID,
-    displayName: 'Base URL',
+    displayName: 'App ID',
     type: 'string',
     required: true,
   },
@@ -975,6 +1019,20 @@ export const emailWebhookConfig: IConfigCredential[] = [
     description: 'the secret used to sign webhooks calls',
     required: true,
   },
+  {
+    key: CredentialsKeyEnum.HmacSecretKeyEncoding,
+    displayName: 'Secret Hmac Key Encoding',
+    type: 'dropdown',
+    description:
+      'how the Secret Hmac Key is interpreted when signing webhook calls — Base-64/HEX for binary keys (e.g. AWS KMS)',
+    required: false,
+    value: 'text',
+    dropdown: [
+      { name: 'Text', value: 'text' },
+      { name: 'Base-64', value: 'base64' },
+      { name: 'HEX', value: 'hex' },
+    ],
+  },
   ...mailConfigBase,
 ];
 
@@ -1006,6 +1064,9 @@ export const novuInAppConfig: IConfigCredential[] = [
     },
   },
 ];
+
+/** Mirrors Inbox HMAC toggle — optional per-session agent authorization for Web Chat. */
+export const novuWebChatConfig: IConfigCredential[] = novuInAppConfig;
 
 export const sendchampConfig: IConfigCredential[] = [
   {
@@ -1276,6 +1337,96 @@ export const whatsAppBusinessConfig: IConfigCredential[] = [
     type: 'string',
     required: true,
   },
+  {
+    key: CredentialsKeyEnum.businessAccountId,
+    displayName: 'WhatsApp Business Account ID',
+    description: 'Shown directly above the Phone Number ID on the API Setup page in your Meta app',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.SecretKey,
+    displayName: 'App Secret',
+    description:
+      'In your Meta app, open App settings > Basic from the bottom of the left sidebar — used to verify inbound webhook signatures',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.Token,
+    displayName: 'Verify Token',
+    description: 'Auto-generated by Novu — used to verify the webhook handshake with Meta',
+    type: 'string',
+    required: false,
+    hidden: true,
+  },
+];
+
+export const sendblueConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ApiKey,
+    displayName: 'API Key',
+    description: 'Your Sendblue API key',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.SecretKey,
+    displayName: 'Secret Key',
+    description: 'Your Sendblue secret key',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.From,
+    displayName: 'From Number',
+    description: 'One of your registered Sendblue phone numbers to send messages from, in E.164 format',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.Token,
+    displayName: 'Webhook Secret',
+    description: 'Auto-generated by Novu — used to verify inbound Sendblue webhook signatures',
+    type: 'string',
+    required: false,
+    hidden: true,
+  },
+];
+
+export const photonImessageConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ApiKey,
+    displayName: 'Project ID',
+    description: 'Your Photon project ID from app.photon.codes',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.SecretKey,
+    displayName: 'Project Secret',
+    description: 'Your Photon project secret from app.photon.codes',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.Token,
+    displayName: 'Webhook Signing Secret',
+    description:
+      'Issued by Photon when the inbound webhook is registered — filled in automatically by "Configure webhook", or paste it here after adding the webhook manually in the Photon dashboard',
+    type: 'string',
+    required: false,
+  },
+];
+
+export const lineConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ApiToken,
+    displayName: 'Channel Access Token',
+    description: 'Your LINE Channel Access Token from the LINE Developers Console',
+    type: 'string',
+    required: true,
+  },
 ];
 
 export const mobishastraConfig: IConfigCredential[] = [
@@ -1416,4 +1567,202 @@ export const cmTelecomConfig: IConfigCredential[] = [
     required: true,
   },
   ...smsConfigBase,
+];
+
+export const ruachSmsConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ApiKey,
+    displayName: 'API Key',
+    description: 'Your Ruach SMS API key',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.ClientId,
+    displayName: 'Client ID',
+    description: 'Your Ruach SMS client identifier',
+    type: 'string',
+    required: true,
+  },
+  ...smsConfigBase,
+];
+
+export const telegramConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ApiToken,
+    displayName: 'Bot Token',
+    description:
+      'Create a bot in Telegram by chatting with BotFather, then paste the HTTP API token it gives you here.',
+    type: 'string',
+    required: true,
+    links: [{ text: 'BotFather', url: 'https://t.me/botfather' }],
+  },
+];
+
+export const webexMessagingConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ClientId,
+    displayName: 'Client ID',
+    description: 'Webex integration client ID used for OAuth authorization.',
+    type: 'string',
+    required: true,
+    links: [{ text: 'Webex integrations', url: 'https://developer.webex.com/docs/integrations' }],
+  },
+  {
+    key: CredentialsKeyEnum.SecretKey,
+    displayName: 'Client Secret',
+    description: 'Webex integration client secret used to exchange OAuth authorization codes.',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.RedirectUrl,
+    displayName: 'Redirect URL',
+    description: 'Redirect after the Webex OAuth flow finishes. If omitted, Novu shows a success page.',
+    type: 'string',
+    required: false,
+  },
+  {
+    key: CredentialsKeyEnum.BaseUrl,
+    displayName: 'Base URL',
+    description: 'Optional Webex API base URL. Leave empty to use https://webexapis.com/v1.',
+    placeholder: 'https://webexapis.com/v1',
+    type: 'text',
+    required: false,
+  },
+];
+
+// ─── Agent Runtime Providers ─────────────────────────────────────────────────
+
+export const anthropicAgentConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.ApiKey,
+    displayName: 'Anthropic API Key',
+    description: 'Your Anthropic API key. Used to authenticate with the Anthropic platform.',
+    placeholder: 'sk-ant-...',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.ExternalEnvironmentId,
+    displayName: 'Anthropic Environment ID',
+    description: 'The Anthropic environment ID auto-provisioned for this integration. Read-only.',
+    type: 'string',
+    required: false,
+  },
+];
+
+export const anthropicAwsAgentConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.Region,
+    displayName: 'AWS Region',
+    description: 'The AWS region where your Claude Platform workspace is provisioned.',
+    type: 'dropdown',
+    required: true,
+    dropdown: AWS_CLAUDE_COMMERCIAL_REGIONS.map((region) => ({ name: region, value: region })),
+  },
+  {
+    key: CredentialsKeyEnum.ApiKey,
+    displayName: 'AWS API Key',
+    description: 'API key generated in the AWS Console under Claude Platform on AWS.',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.ExternalWorkspaceId,
+    displayName: 'Workspace ID',
+    description: 'Claude Platform on AWS workspace ID (`wrkspc_…`). Required for agent runtime dispatch.',
+    type: 'string',
+    required: true,
+  },
+  {
+    key: CredentialsKeyEnum.ExternalEnvironmentId,
+    displayName: 'Environment ID',
+    description: 'The environment ID auto-provisioned for this integration. Read-only.',
+    type: 'string',
+    required: false,
+  },
+];
+
+/**
+ * PagerDuty is routed per subscriber — the routing key and region live on the
+ * per-subscriber `ChannelConnection.auth`, provisioned via
+ * `POST /v1/channel-endpoints` with `type: pagerduty_service`. The env-level
+ * integration record is an anchor only (identifier + name); no fields are
+ * configured on the integration itself.
+ */
+export const pagerdutyConfig: IConfigCredential[] = [];
+
+/**
+ * Opsgenie is routed per subscriber: the API integration key and region live
+ * on the per-subscriber `ChannelConnection.auth`, provisioned via
+ * `POST /v1/channel-endpoints` with `type: opsgenie_integration`. The env-level
+ * integration record is an anchor only (identifier + name); no fields are
+ * configured on the integration itself.
+ */
+export const opsgenieConfig: IConfigCredential[] = [];
+
+/**
+ * Grafana is routed per subscriber: the IRM/OnCall incoming-webhook URL and
+ * optional bearer token live encrypted on the per-subscriber
+ * `ChannelEndpoint.endpoint`, provisioned via `POST /v1/channel-endpoints`
+ * with `type: grafana_oncall_integration`. The env-level integration record
+ * is an anchor only (identifier + name); no fields are configured on the
+ * integration itself.
+ */
+export const grafanaConfig: IConfigCredential[] = [];
+
+export const toolWebhookConfig: IConfigCredential[] = [
+  {
+    key: CredentialsKeyEnum.RoutingMode,
+    displayName: 'Routing Mode',
+    type: 'dropdown',
+    description: 'Static delivers to one integration URL; dynamic routes per subscriber endpoint',
+    required: false,
+    value: 'static',
+    dropdown: [
+      { name: 'Static', value: 'static' },
+      { name: 'Dynamic', value: 'dynamic' },
+    ],
+  },
+  {
+    key: CredentialsKeyEnum.Method,
+    displayName: 'HTTP Method',
+    type: 'dropdown',
+    required: true,
+    value: 'POST',
+    dropdown: [
+      { name: 'POST', value: 'POST' },
+      { name: 'PUT', value: 'PUT' },
+      { name: 'PATCH', value: 'PATCH' },
+    ],
+  },
+  {
+    key: CredentialsKeyEnum.WebhookUrl,
+    displayName: 'Endpoint URL',
+    type: 'string',
+    description: 'Webhook URL used in static routing mode',
+    required: false,
+  },
+  {
+    key: CredentialsKeyEnum.Headers,
+    displayName: 'Headers',
+    type: 'textarea',
+    description: 'Default request headers as a JSON key/value object string',
+    required: false,
+  },
+  {
+    key: CredentialsKeyEnum.Body,
+    displayName: 'Body',
+    type: 'textarea',
+    description: 'Default request body as a JSON key/value object string',
+    required: false,
+  },
+  {
+    key: CredentialsKeyEnum.SecretKey,
+    displayName: 'Signing Secret',
+    type: 'string',
+    description: 'Optional HMAC secret used to sign webhook calls (X-Novu-Signature)',
+    required: false,
+  },
 ];

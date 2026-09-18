@@ -36,15 +36,28 @@ import { Landing1SignUpPage } from '@/pages/landing-1-signup';
 import { SubscribersPage } from '@/pages/subscribers';
 import { TranslationSettingsPage } from '@/pages/translation-settings-page';
 import { WebhooksPage } from '@/pages/webhooks-page';
+import { ConnectSubscriberProvider } from './components/connect/connect-subscriber-provider';
 import { CreateIntegrationSidebar } from './components/integrations/components/create-integration-sidebar';
 import { UpdateIntegrationSidebar } from './components/integrations/components/update-integration-sidebar';
 import { ChannelPreferences } from './components/workflow-editor/channel-preferences';
-import { IS_ENTERPRISE, IS_SELF_HOSTED } from './config';
+import { WorkflowAgentAssignment } from './components/workflow-editor/workflow-agent-assignment';
+import { EE_AUTH_PROVIDER, IS_CLOUD, IS_SELF_HOSTED, IS_SELF_HOSTED_CE } from './config';
 import { FeatureFlagsProvider } from './context/feature-flags-provider';
+import { AgentDetailsPage } from './pages/agent-details';
+import { AgentSlackSetupPage } from './pages/agent-slack-setup-page';
+import { AgentTelegramMobileSetupPage } from './pages/agent-telegram-mobile-setup-page';
+import { AgentWhatsAppSignupPage } from './pages/agent-whatsapp-signup-page';
+import { AgentsPage } from './pages/agents';
+import { AgentsPersonalizePage } from './pages/agents-personalize-page';
+import { AgentsSetupPage } from './pages/agents-setup-page';
+import { CliAuthPage } from './pages/cli-auth';
+import { ConnectClaimPage } from './pages/connect-claim';
 import { ContextsPage } from './pages/contexts';
 import { CreateContextPage } from './pages/create-context';
 import { CreateSubscriberPage } from './pages/create-subscriber';
 import { CreateTopicPage } from './pages/create-topic';
+import { DomainDetailPage } from './pages/domain-detail';
+import { DomainsPage } from './pages/domains';
 import { DuplicateLayoutPage } from './pages/duplicate-layout-page';
 import { EditContextPage } from './pages/edit-context';
 import { EditLayoutPage } from './pages/edit-layout';
@@ -57,23 +70,34 @@ import { ForgotPasswordPage } from './pages/forgot-password';
 import { InboxEmbedPage } from './pages/inbox-embed-page';
 import { InboxEmbedSuccessPage } from './pages/inbox-embed-success-page';
 import { InboxUsecasePage } from './pages/inbox-usecase-page';
+import { IntegrationStoreTelegramMobileSetupPage } from './pages/integration-store-telegram-mobile-setup-page';
+import { LocalEditWorkflowPage } from './pages/local-edit-workflow';
+import { LocalHandshakePage } from './pages/local-handshake';
+import { LocalWorkflowsPage } from './pages/local-workflows';
 import { RedirectToLegacyStudioAuth } from './pages/redirect-to-legacy-studio-auth';
 import { ResetPasswordPage } from './pages/reset-password';
 import { TestWorkflowDrawerPage } from './pages/test-workflow-drawer-page';
 import { TestWorkflowRouteHandler } from './pages/test-workflow-route-handler';
 import { TopicsPage } from './pages/topics';
 import { UpsertVariablePage } from './pages/upsert-variable';
+import { UsecaseSelectPage } from './pages/usecase-select-page';
 import { VariablesPage } from './pages/variables';
 import { VercelIntegrationPage } from './pages/vercel-integration-page';
 import { AuthRoute, CatchAllRoute, DashboardRoute, ProtectedAuthRoute, RootRoute } from './routes';
 import { OnboardingParentRoute } from './routes/onboarding';
 import { ProtectedRoute } from './routes/protected-route';
+import { captureAgentTemplateIdFromUrl } from './utils/agent-template-identity';
+import { captureConnectClaimTokenFromUrl } from './utils/connect-claim-pending';
 import { ROUTES } from './utils/routes';
 import { initializeSentry } from './utils/sentry';
 import { overrideZodErrorMap } from './utils/validation';
 
 initializeSentry();
 overrideZodErrorMap();
+// Stash an incoming `?agentTemplateId=` before Clerk's auth redirects drop the query params.
+captureAgentTemplateIdFromUrl();
+// Stash an incoming connect claim token before Clerk's auth redirects drop the query params.
+captureConnectClaimTokenFromUrl();
 
 const router = createBrowserRouter([
   {
@@ -83,6 +107,39 @@ const router = createBrowserRouter([
       {
         path: `${ROUTES.LANDING_1_SIGN_UP}/*`,
         element: <Landing1SignUpPage />,
+      },
+      {
+        path: ROUTES.CLI_AUTH,
+        element: <CliAuthPage />,
+      },
+      {
+        path: ROUTES.CONNECT_CLAIM,
+        element: <ConnectClaimPage />,
+      },
+      {
+        // Public, unauthenticated setup page for Slack. Mounted outside
+        // AuthRoute so unauthenticated visitors are not redirected to sign-in.
+        path: ROUTES.AGENT_SLACK_SETUP,
+        element: <AgentSlackSetupPage />,
+      },
+      {
+        // Public, unauthenticated mobile setup page for Telegram. Mounted outside
+        // AuthRoute so unauthenticated visitors are not redirected to sign-in.
+        path: ROUTES.AGENT_TELEGRAM_MOBILE_SETUP,
+        element: <AgentTelegramMobileSetupPage />,
+      },
+      {
+        // Public, unauthenticated WhatsApp Embedded Signup page opened by
+        // `npx novu connect`. Trust comes from the opaque token in the URL, so
+        // it is mounted outside AuthRoute (keyless CLI users have no session).
+        path: ROUTES.AGENT_WHATSAPP_SIGNUP,
+        element: <AgentWhatsAppSignupPage />,
+      },
+      {
+        // Public, unauthenticated mobile setup page for the Telegram integration
+        // store create flow. Creates a new integration server-side on submit.
+        path: ROUTES.INTEGRATION_TELEGRAM_MOBILE_SETUP,
+        element: <IntegrationStoreTelegramMobileSetupPage />,
       },
       {
         element: <AuthRoute />,
@@ -130,6 +187,22 @@ const router = createBrowserRouter([
         path: '/onboarding',
         element: <OnboardingParentRoute />,
         children: [
+          {
+            path: ROUTES.USECASE_SELECT,
+            element: <UsecaseSelectPage />,
+          },
+          {
+            path: ROUTES.AGENTS_PERSONALIZE,
+            element: <AgentsPersonalizePage />,
+          },
+          {
+            path: ROUTES.AGENTS_SETUP,
+            element: (
+              <ConnectSubscriberProvider>
+                <AgentsSetupPage />
+              </ConnectSubscriberProvider>
+            ),
+          },
           {
             path: ROUTES.INBOX_USECASE,
             element: <InboxUsecasePage />,
@@ -350,6 +423,42 @@ const router = createBrowserRouter([
                 ],
               },
               {
+                path: ROUTES.AGENTS,
+                element: <AgentsPage />,
+              },
+              {
+                path: ROUTES.AGENT_DETAILS_INTEGRATIONS_DETAIL,
+                element: (
+                  <ProtectedRoute permission={PermissionsEnum.AGENT_READ}>
+                    <AgentDetailsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.AGENT_DETAILS_TAB,
+                element: (
+                  <ProtectedRoute permission={PermissionsEnum.AGENT_READ}>
+                    <AgentDetailsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.AGENT_DETAILS,
+                element: (
+                  <ProtectedRoute permission={PermissionsEnum.AGENT_READ}>
+                    <AgentDetailsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: ROUTES.DOMAINS,
+                element: !IS_SELF_HOSTED_CE ? <DomainsPage /> : <Navigate to={ROUTES.ROOT} replace />,
+              },
+              {
+                path: ROUTES.DOMAIN_DETAIL,
+                element: !IS_SELF_HOSTED_CE ? <DomainDetailPage /> : <Navigate to={ROUTES.ROOT} replace />,
+              },
+              {
                 path: ROUTES.API_KEYS,
                 element: (
                   <ProtectedRoute permission={PermissionsEnum.API_KEY_READ}>
@@ -400,12 +509,75 @@ const router = createBrowserRouter([
                 ),
               },
               {
+                path: ROUTES.ACTIVITY_CONVERSATIONS,
+                element: (
+                  <ProtectedRoute permission={PermissionsEnum.NOTIFICATION_READ}>
+                    <ActivityFeed />
+                  </ProtectedRoute>
+                ),
+              },
+              {
                 path: ROUTES.ANALYTICS,
                 element: (
                   <ProtectedRoute permission={PermissionsEnum.NOTIFICATION_READ}>
                     <AnalyticsPage />
                   </ProtectedRoute>
                 ),
+              },
+              {
+                path: ROUTES.LOCAL_WORKFLOWS,
+                element: (
+                  // BRIDGE_WRITE mirrors the stateless bridge API guard: local
+                  // mode signs requests to the caller's tunnel with the env key.
+                  <ProtectedRoute permission={PermissionsEnum.BRIDGE_WRITE}>
+                    <LocalWorkflowsPage />
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                // Workflow editor mounted on virtual local-bridge workflows;
+                // children mirror ROUTES.EDIT_WORKFLOW so relative step
+                // navigation behaves identically.
+                path: ROUTES.LOCAL_EDIT_WORKFLOW,
+                element: (
+                  <ProtectedRoute permission={PermissionsEnum.BRIDGE_WRITE}>
+                    <LocalEditWorkflowPage />
+                  </ProtectedRoute>
+                ),
+                children: [
+                  {
+                    element: <ConfigureWorkflow />,
+                    index: true,
+                  },
+                  {
+                    element: <ConfigureStep />,
+                    path: ROUTES.EDIT_STEP,
+                  },
+                  {
+                    element: <EditStepTemplateV2Page />,
+                    path: ROUTES.EDIT_STEP_TEMPLATE,
+                  },
+                  {
+                    element: <EditStepConditions />,
+                    path: ROUTES.EDIT_STEP_CONDITIONS,
+                  },
+                  {
+                    element: <ChannelPreferences />,
+                    path: ROUTES.EDIT_WORKFLOW_PREFERENCES,
+                  },
+                  {
+                    element: <WorkflowAgentAssignment />,
+                    path: ROUTES.EDIT_WORKFLOW_AGENT,
+                  },
+                  {
+                    path: ROUTES.LOCAL_TRIGGER_WORKFLOW,
+                    element: (
+                      <ProtectedRoute permission={PermissionsEnum.EVENT_WRITE} isDrawerRoute>
+                        <TestWorkflowDrawerPage />
+                      </ProtectedRoute>
+                    ),
+                  },
+                ],
               },
               {
                 path: ROUTES.EDIT_WORKFLOW,
@@ -435,6 +607,10 @@ const router = createBrowserRouter([
                   {
                     element: <ChannelPreferences />,
                     path: ROUTES.EDIT_WORKFLOW_PREFERENCES,
+                  },
+                  {
+                    element: <WorkflowAgentAssignment />,
+                    path: ROUTES.EDIT_WORKFLOW_AGENT,
                   },
                   {
                     path: ROUTES.TRIGGER_WORKFLOW,
@@ -527,7 +703,6 @@ const router = createBrowserRouter([
                   </ProtectedRoute>
                 ),
               },
-
               {
                 path: '*',
                 element: <CatchAllRoute />,
@@ -576,27 +751,30 @@ const router = createBrowserRouter([
           },
           {
             path: ROUTES.PARTNER_INTEGRATIONS_VERCEL,
-            element: (
-              <ProtectedRoute permission={PermissionsEnum.PARTNER_INTEGRATION_READ}>
-                <VercelIntegrationPage />
-              </ProtectedRoute>
-            ),
+            element:
+              EE_AUTH_PROVIDER === 'clerk' && IS_CLOUD ? (
+                <ProtectedRoute permission={PermissionsEnum.PARTNER_INTEGRATION_READ}>
+                  <VercelIntegrationPage />
+                </ProtectedRoute>
+              ) : (
+                <Navigate to={ROUTES.ROOT} replace />
+              ),
           },
           {
             path: ROUTES.SETTINGS,
-            element: IS_SELF_HOSTED && !IS_ENTERPRISE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_ACCOUNT,
-            element: IS_SELF_HOSTED && !IS_ENTERPRISE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_ORGANIZATION,
-            element: IS_SELF_HOSTED && !IS_ENTERPRISE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_TEAM,
-            element: IS_SELF_HOSTED && !IS_ENTERPRISE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
+            element: IS_SELF_HOSTED_CE ? <Navigate to={ROUTES.ROOT} /> : <SettingsPage />,
           },
           {
             path: ROUTES.SETTINGS_BILLING,
@@ -605,6 +783,15 @@ const router = createBrowserRouter([
           {
             path: ROUTES.LOCAL_STUDIO_AUTH,
             element: <RedirectToLegacyStudioAuth />,
+          },
+          {
+            // Handshake target opened by `novu dev` (new dashboard local mode).
+            path: ROUTES.LOCAL_HANDSHAKE,
+            element: (
+              <ProtectedRoute permission={PermissionsEnum.BRIDGE_WRITE}>
+                <LocalHandshakePage />
+              </ProtectedRoute>
+            ),
           },
           {
             path: '*',
@@ -616,7 +803,11 @@ const router = createBrowserRouter([
   },
 ]);
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+
+if (!rootElement) throw new Error('Root element not found');
+
+createRoot(rootElement).render(
   <StrictMode>
     <FeatureFlagsProvider>
       <RouterProvider router={router} />

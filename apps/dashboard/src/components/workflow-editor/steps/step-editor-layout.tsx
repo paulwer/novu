@@ -1,20 +1,33 @@
 import {
   AiAgentTypeEnum,
   AiResourceTypeEnum,
+  AiWorkflowSuggestion,
   ContentIssueEnum,
   EnvironmentTypeEnum,
   FeatureFlagsKeysEnum,
   PermissionsEnum,
   ResourceOriginEnum,
   StepResponseDto,
+  StepTypeEnum,
   WorkflowResponseDto,
 } from '@novu/shared';
-import { useMemo, useState } from 'react';
-import { RiCodeBlock, RiEdit2Line, RiEyeLine, RiGitCommitFill, RiLinkUnlinkM, RiPlayCircleLine } from 'react-icons/ri';
+import { FC, SVGProps, useMemo, useState } from 'react';
+import { IconType } from 'react-icons';
+import {
+  RiCodeBlock,
+  RiEdit2Line,
+  RiEyeLine,
+  RiGitCommitFill,
+  RiLinkUnlinkM,
+  RiListCheck3,
+  RiPlayCircleLine,
+  RiQuillPenLine,
+} from 'react-icons/ri';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AiChatProvider } from '@/components/ai-sidekick';
 import { NovuCopilotPanel } from '@/components/ai-sidekick/novu-copilot-panel';
 import { ConfirmationModal } from '@/components/confirmation-modal';
+import { Code2 } from '@/components/icons/code-2';
 import { IssuesPanel } from '@/components/issues-panel';
 import { Badge, BadgeIcon } from '@/components/primitives/badge';
 import { Button } from '@/components/primitives/button';
@@ -30,27 +43,34 @@ import { PanelHeader } from '@/components/workflow-editor/steps/layout/panel-hea
 import { ResizableLayout } from '@/components/workflow-editor/steps/layout/resizable-layout';
 import { StepPreviewFactory } from '@/components/workflow-editor/steps/preview/step-preview-factory';
 import { useSaveForm } from '@/components/workflow-editor/steps/save-form-context';
+import { ContentSourceProvider } from '@/components/workflow-editor/steps/shared/provider-overrides/content-source-context';
 import { StepEditorModeToggle } from '@/components/workflow-editor/steps/shared/step-editor-mode-toggle';
 import { useStepResolverHint } from '@/components/workflow-editor/steps/shared/use-step-resolver-hint';
-import { useEnvironment } from '@/context/environment/hooks';
-import { useDisconnectStepResolver } from '@/hooks/use-disconnect-step-resolver';
-import { useFeatureFlag } from '@/hooks/use-feature-flag';
-import { INLINE_CONFIGURABLE_STEP_TYPES, STEP_RESOLVER_SUPPORTED_STEP_TYPES } from '@/utils/constants';
+import { StepEditorReadOnlyBanner } from '@/components/workflow-editor/steps/step-editor-read-only-banner';
 import { parseJsonValue } from '@/components/workflow-editor/steps/utils/preview-context.utils';
 import { getEditorTitle } from '@/components/workflow-editor/steps/utils/step-utils';
 import { TestWorkflowDrawer } from '@/components/workflow-editor/test-workflow/test-workflow-drawer';
 import { TranslationStatus } from '@/components/workflow-editor/translation-status';
 import { useWorkflow } from '@/components/workflow-editor/workflow-provider';
+import { IS_AI_FEATURES_ENABLED } from '@/config';
+import { useEnvironment } from '@/context/environment/hooks';
+import { useDisconnectStepResolver } from '@/hooks/use-disconnect-step-resolver';
+import { useFeatureFlag } from '@/hooks/use-feature-flag';
 import { useFetchTranslationGroup } from '@/hooks/use-fetch-translation-group';
 import { useFetchWorkflowTestData } from '@/hooks/use-fetch-workflow-test-data';
 import { useIsTranslationEnabled } from '@/hooks/use-is-translation-enabled';
 import { LocalizationResourceEnum } from '@/types/translations';
+import { INLINE_CONFIGURABLE_STEP_TYPES, STEP_RESOLVER_SUPPORTED_STEP_TYPES } from '@/utils/constants';
 import { cn } from '@/utils/ui';
 import { Protect } from '../../../utils/protect';
+
+/** Step types whose editor and preview share a provider-override content source. */
+const CONTENT_OVERRIDE_STEP_TYPES: StepTypeEnum[] = [StepTypeEnum.CHAT, StepTypeEnum.TOOL];
 
 type StepEditorLayoutProps = {
   workflow: WorkflowResponseDto;
   step: StepResponseDto;
+  isReadOnly: boolean;
   className?: string;
 };
 
@@ -107,7 +127,7 @@ function StepEditorContent() {
   const { isPending: isWorkflowPending, refetch: refetchWorkflow } = useWorkflow();
   const { currentEnvironment } = useEnvironment();
   const { onBlur } = useSaveForm();
-  const isAiEnabled = useFeatureFlag(FeatureFlagsKeysEnum.IS_AI_WORKFLOW_GENERATION_ENABLED);
+  const isAiEnabled = useFeatureFlag(FeatureFlagsKeysEnum.IS_AI_WORKFLOW_GENERATION_ENABLED) && IS_AI_FEATURES_ENABLED;
   const isDevEnvironment = currentEnvironment?.type === EnvironmentTypeEnum.DEV;
   const isExternalWorkflow = !workflow || workflow.origin === ResourceOriginEnum.EXTERNAL;
   const showCopilot = isAiEnabled && isDevEnvironment && !isExternalWorkflow;
@@ -160,10 +180,39 @@ function StepEditorContent() {
     };
   }, [step.issues, controlValues]);
 
+  const newChatSuggestions = useMemo(() => {
+    const suggestions: { label: AiWorkflowSuggestion; icon: IconType | FC<SVGProps<SVGSVGElement>> }[] = [
+      { label: AiWorkflowSuggestion.AUTOCOMPLETE, icon: RiListCheck3 },
+      { label: AiWorkflowSuggestion.APPLY_CONDITIONS, icon: Code2 },
+    ];
+
+    const isContentStep = [
+      StepTypeEnum.EMAIL,
+      StepTypeEnum.SMS,
+      StepTypeEnum.PUSH,
+      StepTypeEnum.IN_APP,
+      StepTypeEnum.CHAT,
+      StepTypeEnum.TOOL,
+    ].includes(step.type);
+    const emptyBody = !step.controlValues?.body;
+    if (isContentStep && !emptyBody) {
+      suggestions.push({ label: AiWorkflowSuggestion.IMPROVE_MESSAGING, icon: RiQuillPenLine });
+    } else if (isContentStep && emptyBody) {
+      suggestions.push({ label: AiWorkflowSuggestion.GENERATE_STEP_CONTENT, icon: RiQuillPenLine });
+    }
+
+    if (Object.keys(step.issues?.controls ?? {}).length > 0) {
+      suggestions.push({ label: AiWorkflowSuggestion.FIX_STEP_ISSUES, icon: RiListCheck3 });
+    }
+
+    return suggestions;
+  }, [step]);
+
   const aiChatConfig = useMemo(
     () => ({
       resourceType: AiResourceTypeEnum.WORKFLOW,
       resourceId: workflow?._id,
+      newChatSuggestions,
       agentType: AiAgentTypeEnum.GENERATE_WORKFLOW,
       metadata: { stepId: step.stepId },
       isResourceLoading: isWorkflowPending,
@@ -179,13 +228,14 @@ function StepEditorContent() {
           data.type === 'data-step-updated' ||
           data.type === 'data-step-removed' ||
           data.type === 'data-step-moved' ||
-          data.type === 'data-workflow-metadata-updated'
+          data.type === 'data-workflow-metadata-updated' ||
+          data.type === 'data-payload-schema-updated'
         ) {
           refetchWorkflow({ cancelRefetch: true });
         }
       },
     }),
-    [workflow?._id, step.stepId, isWorkflowPending, refetchWorkflow]
+    [workflow?._id, step.stepId, newChatSuggestions, isWorkflowPending, refetchWorkflow]
   );
 
   const currentPayload = parseJsonValue(editorValue).payload;
@@ -231,13 +281,12 @@ function StepEditorContent() {
                     {step.stepResolverHash}
                   </Badge>
                 )}
-                {isInlineResolverStep ? (
-                    step.stepResolverHash && <DisconnectResolverButton step={step} />
-                  ) : (
-                    !isExternalWorkflow && <StepEditorModeToggle />
-                  )}
+                {isInlineResolverStep
+                  ? step.stepResolverHash && <DisconnectResolverButton step={step} />
+                  : !isExternalWorkflow && <StepEditorModeToggle />}
               </div>
             </PanelHeader>
+            <StepEditorReadOnlyBanner />
             <div className="flex-1 overflow-y-auto">
               <div className="h-full p-3">
                 <StepEditorFactory />
@@ -332,13 +381,21 @@ function StepEditorContent() {
   );
 }
 
-export function StepEditorLayout({ workflow, step, className }: StepEditorLayoutProps) {
+export function StepEditorLayout({ workflow, step, isReadOnly, className }: StepEditorLayoutProps) {
+  const content = (
+    <HttpRequestTestProvider>
+      <StepEditorContent />
+    </HttpRequestTestProvider>
+  );
+
   return (
     <div className={cn('h-full w-full', className)}>
-      <StepEditorProvider workflow={workflow} step={step}>
-        <HttpRequestTestProvider>
-          <StepEditorContent />
-        </HttpRequestTestProvider>
+      <StepEditorProvider workflow={workflow} step={step} isReadOnly={isReadOnly}>
+        {CONTENT_OVERRIDE_STEP_TYPES.includes(step.type) ? (
+          <ContentSourceProvider>{content}</ContentSourceProvider>
+        ) : (
+          content
+        )}
       </StepEditorProvider>
     </div>
   );

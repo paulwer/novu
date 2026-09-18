@@ -11,10 +11,15 @@ import { StepResolverActivePanel } from '@/components/workflow-editor/steps/shar
 import { StepResolverNotPublished } from '@/components/workflow-editor/steps/shared/step-resolver-not-published';
 import { SmsEditor } from '@/components/workflow-editor/steps/sms/sms-editor';
 import { ThrottleEditor } from '@/components/workflow-editor/steps/throttle/throttle-editor';
+import { ToolEditor } from '@/components/workflow-editor/steps/tool/tool-editor';
 import { useWorkflow } from '@/components/workflow-editor/workflow-provider';
 import { useFeatureFlag } from '@/hooks/use-feature-flag';
 import { useStepResolverPolling } from '@/hooks/use-step-resolver-polling';
-import { INLINE_CONFIGURABLE_STEP_TYPES, STEP_RESOLVER_SUPPORTED_STEP_TYPES, STEP_TYPE_LABELS } from '@/utils/constants';
+import {
+  INLINE_CONFIGURABLE_STEP_TYPES,
+  STEP_RESOLVER_SUPPORTED_STEP_TYPES,
+  STEP_TYPE_LABELS,
+} from '@/utils/constants';
 
 function NoEditorAvailable({ message }: { message: string }) {
   return <div className="flex h-full items-center justify-center text-sm text-neutral-500">{message}</div>;
@@ -87,6 +92,9 @@ export function StepEditorFactory() {
 
     case StepTypeEnum.CHAT:
       return <ChatEditor uiSchema={uiSchema} />;
+
+    case StepTypeEnum.TOOL:
+      return <ToolEditor uiSchema={uiSchema} />;
 
     case StepTypeEnum.THROTTLE:
       return <ThrottleEditor />;

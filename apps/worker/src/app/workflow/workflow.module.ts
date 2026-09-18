@@ -1,6 +1,7 @@
 import { DynamicModule, Logger, Module, OnApplicationShutdown, Provider, Type } from '@nestjs/common';
 import { ForwardReference } from '@nestjs/common/interfaces/modules/forward-reference.interface';
 import {
+  AttachmentRehydrator,
   BulkCreateExecutionDetails,
   CalculateLimitNovuIntegration,
   CompileEmailTemplate,
@@ -8,6 +9,7 @@ import {
   CompileTemplate,
   ConditionsFilter,
   CreateExecutionDetails,
+  CreateStepConditionEvaluationDetail,
   ExecuteStepResolverRequest,
   GetDecryptedIntegrations,
   GetLayoutUseCaseV0,
@@ -17,10 +19,15 @@ import {
   GetSubscriberSchedule,
   GetSubscriberTemplatePreference,
   GetTopicSubscribersUseCase,
+  InboundDomainRouteDelivery,
   InMemoryProviderService,
+  MsTeamsTokenService,
   NormalizeVariables,
   ProcessTenant,
   RedisThrottleService,
+  ResolveAgentInboundAddresses,
+  ResolveTriggerContexts,
+  RotatingConnectionTokenService,
   SelectIntegration,
   SelectVariant,
   SendWebhookMessage,
@@ -32,11 +39,18 @@ import {
   WorkflowInMemoryProviderService,
 } from '@novu/application-generic';
 import {
+  AgentIntegrationRepository,
+  AgentRepository,
   ChannelConnectionRepository,
   ChannelEndpointRepository,
   CommunityOrganizationRepository,
   CommunityUserRepository,
   ContextRepository,
+  ConversationActivityRepository,
+  ConversationRepository,
+  DomainRepository,
+  DomainRouteRepository,
+  IntegrationRepository,
   JobRepository,
   PreferencesRepository,
 } from '@novu/dal';
@@ -59,6 +73,7 @@ import {
   SendMessageInApp,
   SendMessagePush,
   SendMessageSms,
+  SendMessageTool,
   SetJobAsCompleted,
   SetJobAsFailed,
   Throttle,
@@ -67,6 +82,9 @@ import {
 } from './usecases';
 import { AddJob, MergeOrCreateDigest } from './usecases/add-job';
 import { InboundEmailParse } from './usecases/inbound-email-parse/inbound-email-parse.usecase';
+import { LogInboundEmailRequest } from './usecases/inbound-email-parse/log-inbound-email-request.usecase';
+import { DomainRouteStrategy } from './usecases/inbound-email-parse/strategies/domain-route.strategy';
+import { ReplyToStrategy } from './usecases/inbound-email-parse/strategies/reply-to.strategy';
 import { NoopSendWebhookMessage } from './usecases/noop-send-webhook-message.usecase';
 import { ResolveChannelEndpoints } from './usecases/send-message/channel-endpoint-resolution/resolve-channel-endpoints.usecase';
 import { ExecuteCodeFirstCustomStep } from './usecases/send-message/execute-code-first-custom-step.usecase';
@@ -98,6 +116,13 @@ const enterpriseImports = (): Array<Type | DynamicModule | Promise<DynamicModule
 };
 
 const REPOSITORIES = [
+  AgentRepository,
+  AgentIntegrationRepository,
+  ConversationActivityRepository,
+  ConversationRepository,
+  DomainRepository,
+  DomainRouteRepository,
+  IntegrationRepository,
   JobRepository,
   CommunityOrganizationRepository,
   PreferencesRepository,
@@ -151,6 +176,7 @@ const USE_CASES = [
   CompileEmailTemplate,
   CompileTemplate,
   CreateExecutionDetails,
+  CreateStepConditionEvaluationDetail,
   ConditionsFilter,
   NormalizeVariables,
   BulkCreateExecutionDetails,
@@ -166,6 +192,8 @@ const USE_CASES = [
   GetSubscriberTemplatePreference,
   HandleLastFailedJob,
   ProcessTenant,
+  ResolveTriggerContexts,
+  ResolveAgentInboundAddresses,
   QueueNextJob,
   RunJob,
   SendMessage,
@@ -174,6 +202,7 @@ const USE_CASES = [
   SendMessageEmail,
   SendMessageInApp,
   SendMessagePush,
+  SendMessageTool,
   SendMessageSms,
   Throttle,
   ExecuteCodeFirstCustomStep,
@@ -192,6 +221,11 @@ const USE_CASES = [
   TriggerMulticast,
   CompileInAppTemplate,
   InboundEmailParse,
+  LogInboundEmailRequest,
+  AttachmentRehydrator,
+  InboundDomainRouteDelivery,
+  ReplyToStrategy,
+  DomainRouteStrategy,
   ExecuteBridgeJob,
   ExecuteStepResolverRequest,
   GetPreferences,
@@ -199,7 +233,7 @@ const USE_CASES = [
   ResolveChannelEndpoints,
 ];
 
-const PROVIDERS: Provider[] = [RedisThrottleService];
+const PROVIDERS: Provider[] = [RedisThrottleService, MsTeamsTokenService, RotatingConnectionTokenService];
 const activeWorkersToken: any = {
   provide: 'ACTIVE_WORKERS',
   useFactory: (...args: any[]) => {

@@ -1,4 +1,19 @@
 import type { RulesLogic } from 'json-logic-js';
+import type {
+  ChannelConnectionResponse,
+  ChannelEndpointResponse,
+  ConnectionMode,
+  CreateChannelConnectionArgs,
+  CreateChannelEndpointArgs,
+  GenerateChatOAuthUrlArgs,
+  GenerateConnectOAuthUrlArgs,
+  GenerateLinkUserOAuthUrlArgs,
+  GetChannelConnectionArgs,
+  LinkChannelEndpointArgs,
+  LinkChannelEndpointResponse,
+  ListChannelConnectionsArgs,
+  ListChannelEndpointsArgs,
+} from '../channel-connections/types';
 import type { PreferenceFilter } from '../subscriptions/types';
 import type {
   ActionTypeEnum,
@@ -19,10 +34,54 @@ import type {
 import { SeverityLevelEnum } from '../types';
 import { HttpClient, HttpClientOptions } from './http-client';
 
-export type InboxServiceOptions = HttpClientOptions;
+export type InboxServiceOptions = HttpClientOptions & {
+  httpClient?: HttpClient;
+};
 
 const INBOX_ROUTE = '/inbox';
 const INBOX_NOTIFICATIONS_ROUTE = `${INBOX_ROUTE}/notifications`;
+const CHAT_OAUTH_ROUTE = `${INBOX_ROUTE}/chat/oauth`;
+const CHANNEL_CONNECTIONS_ROUTE = `${INBOX_ROUTE}/channel-connections`;
+const CHANNEL_CONNECTIONS_OAUTH_ROUTE = `${CHANNEL_CONNECTIONS_ROUTE}/oauth`;
+const CHANNEL_ENDPOINTS_ROUTE = `${INBOX_ROUTE}/channel-endpoints`;
+const CHANNEL_ENDPOINTS_OAUTH_ROUTE = `${CHANNEL_ENDPOINTS_ROUTE}/oauth`;
+
+type ChannelListBaseArgs = {
+  subscriberId?: string;
+  integrationIdentifier?: string;
+  connectionIdentifier?: string;
+  channel?: string;
+  providerId?: string;
+  contextKeys?: string[];
+  connectionMode?: ConnectionMode;
+  limit?: number;
+  after?: string;
+  before?: string;
+};
+
+function buildChannelListSearchParams(args: ChannelListBaseArgs): string {
+  const searchParams = new URLSearchParams();
+  if (args.subscriberId) searchParams.append('subscriberId', args.subscriberId);
+  if (args.integrationIdentifier) searchParams.append('integrationIdentifier', args.integrationIdentifier);
+  if (args.connectionIdentifier) searchParams.append('connectionIdentifier', args.connectionIdentifier);
+  if (args.channel) searchParams.append('channel', args.channel);
+  if (args.providerId) searchParams.append('providerId', args.providerId);
+  if (args.connectionMode) searchParams.append('connectionMode', args.connectionMode);
+  if (args.contextKeys !== undefined) {
+    if (args.contextKeys.length === 0) {
+      searchParams.append('contextKeys', '');
+    } else {
+      for (const key of args.contextKeys) {
+        searchParams.append('contextKeys', key);
+      }
+    }
+  }
+  if (args.limit) searchParams.append('limit', String(args.limit));
+  if (args.after) searchParams.append('after', args.after);
+  if (args.before) searchParams.append('before', args.before);
+
+  return searchParams.size ? `?${searchParams.toString()}` : '';
+}
 
 function appendTagsToSearchParams(searchParams: URLSearchParams, tags: TagsFilter | undefined): void {
   if (tags === undefined) {
@@ -71,7 +130,8 @@ export class InboxService {
   #httpClient: HttpClient;
 
   constructor(options: InboxServiceOptions = {}) {
-    this.#httpClient = new HttpClient(options);
+    const { httpClient, ...httpClientOptions } = options;
+    this.#httpClient = httpClient ?? new HttpClient(httpClientOptions);
   }
 
   async initializeSession({
@@ -493,5 +553,163 @@ export class InboxService {
 
   deleteSubscription({ topicKey, identifier }: { topicKey: string; identifier: string }): Promise<void> {
     return this.#httpClient.delete(`${INBOX_ROUTE}/topics/${topicKey}/subscriptions/${identifier}`);
+  }
+
+  /**
+   * @deprecated Use generateConnectOAuthUrl() or generateLinkUserOAuthUrl() instead.
+   */
+  generateChatOAuthUrl({
+    integrationIdentifier,
+    connectionIdentifier,
+    subscriberId,
+    context,
+    scope,
+    userScope,
+    mode,
+    connectionMode,
+    autoLinkUser,
+  }: GenerateChatOAuthUrlArgs): Promise<{ url: string }> {
+    return this.#httpClient.post(CHAT_OAUTH_ROUTE, {
+      integrationIdentifier,
+      connectionIdentifier,
+      subscriberId,
+      context,
+      scope,
+      userScope,
+      mode,
+      connectionMode,
+      autoLinkUser,
+    });
+  }
+
+  generateConnectOAuthUrl({
+    integrationIdentifier,
+    connectionIdentifier,
+    subscriberId,
+    context,
+    contextHash,
+    scope,
+    connectionMode,
+    autoLinkUser,
+  }: GenerateConnectOAuthUrlArgs): Promise<{ url: string }> {
+    return this.#httpClient.post(CHANNEL_CONNECTIONS_OAUTH_ROUTE, {
+      integrationIdentifier,
+      connectionIdentifier,
+      subscriberId,
+      context,
+      contextHash,
+      scope,
+      connectionMode,
+      autoLinkUser,
+    });
+  }
+
+  generateLinkUserOAuthUrl({
+    integrationIdentifier,
+    connectionIdentifier,
+    subscriberId,
+    context,
+    contextHash,
+    userScope,
+  }: GenerateLinkUserOAuthUrlArgs): Promise<{ url: string }> {
+    return this.#httpClient.post(CHANNEL_ENDPOINTS_OAUTH_ROUTE, {
+      integrationIdentifier,
+      connectionIdentifier,
+      subscriberId,
+      context,
+      contextHash,
+      userScope,
+    });
+  }
+
+  listChannelConnections(args: ListChannelConnectionsArgs = {}): Promise<{
+    data: ChannelConnectionResponse[];
+    next?: string;
+    previous?: string;
+  }> {
+    const query = buildChannelListSearchParams(args);
+
+    return this.#httpClient.get(`${CHANNEL_CONNECTIONS_ROUTE}${query}`, undefined, false);
+  }
+
+  getChannelConnection({ identifier, connectionMode }: GetChannelConnectionArgs): Promise<ChannelConnectionResponse> {
+    const searchParams = new URLSearchParams();
+    if (connectionMode) {
+      searchParams.append('connectionMode', connectionMode);
+    }
+
+    return this.#httpClient.get(`${CHANNEL_CONNECTIONS_ROUTE}/${identifier}`, searchParams, false);
+  }
+
+  createChannelConnection({
+    identifier,
+    integrationIdentifier,
+    subscriberId,
+    context,
+    workspace,
+    auth,
+  }: CreateChannelConnectionArgs): Promise<ChannelConnectionResponse> {
+    return this.#httpClient.post(CHANNEL_CONNECTIONS_ROUTE, {
+      identifier,
+      integrationIdentifier,
+      subscriberId,
+      context,
+      workspace,
+      auth,
+    });
+  }
+
+  deleteChannelConnection(identifier: string): Promise<void> {
+    return this.#httpClient.delete(`${CHANNEL_CONNECTIONS_ROUTE}/${identifier}`);
+  }
+
+  listChannelEndpoints(args: ListChannelEndpointsArgs = {}): Promise<{
+    data: ChannelEndpointResponse[];
+    next?: string;
+    previous?: string;
+  }> {
+    const query = buildChannelListSearchParams(args);
+
+    return this.#httpClient.get(`${CHANNEL_ENDPOINTS_ROUTE}${query}`, undefined, false);
+  }
+
+  getChannelEndpoint(identifier: string): Promise<ChannelEndpointResponse> {
+    return this.#httpClient.get(`${CHANNEL_ENDPOINTS_ROUTE}/${identifier}`);
+  }
+
+  createChannelEndpoint({
+    identifier,
+    integrationIdentifier,
+    connectionIdentifier,
+    subscriberId,
+    context,
+    type,
+    endpoint,
+  }: CreateChannelEndpointArgs): Promise<ChannelEndpointResponse> {
+    return this.#httpClient.post(CHANNEL_ENDPOINTS_ROUTE, {
+      identifier,
+      integrationIdentifier,
+      connectionIdentifier,
+      subscriberId,
+      context,
+      type,
+      endpoint,
+    });
+  }
+
+  deleteChannelEndpoint(identifier: string): Promise<void> {
+    return this.#httpClient.delete(`${CHANNEL_ENDPOINTS_ROUTE}/${identifier}`);
+  }
+
+  linkChannelEndpoint({
+    integrationIdentifier,
+    context,
+    contextHash,
+  }: LinkChannelEndpointArgs): Promise<LinkChannelEndpointResponse> {
+    return this.#httpClient.post(`${CHANNEL_ENDPOINTS_ROUTE}/link`, {
+      integrationIdentifier,
+      context,
+      contextHash,
+    });
   }
 }

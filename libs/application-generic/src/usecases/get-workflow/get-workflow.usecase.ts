@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   BaseRepository,
   EnvironmentRepository,
@@ -67,6 +73,7 @@ export class GetWorkflowUseCase {
         organizationId: command.user.organizationId,
         workflowIdOrInternalId: command.workflowIdOrInternalId,
         userId: command.user._id,
+        skipPreferencesCache: command.skipPreferencesCache,
       })
     );
 
@@ -181,6 +188,10 @@ export class GetWorkflowUseCase {
         issues: Object.keys(combinedIssues).length > 0 ? combinedIssues : undefined,
       };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException({
         message: 'Failed to build workflow step',
         workflowId: workflow._id,

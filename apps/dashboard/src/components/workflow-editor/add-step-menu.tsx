@@ -1,8 +1,9 @@
-import { FeatureFlagsKeysEnum } from '@novu/shared';
+import { ChannelTypeEnum, FeatureFlagsKeysEnum } from '@novu/shared';
 import { PopoverPortal } from '@radix-ui/react-popover';
 import React, { ReactNode, useState } from 'react';
 import { RiAddLine } from 'react-icons/ri';
 import { useFeatureFlag } from '@/hooks/use-feature-flag';
+import { isChannelVisibleInUi } from '@/utils/channels';
 import { STEP_TYPE_TO_COLOR } from '@/utils/color';
 import { StepTypeEnum } from '@/utils/enums';
 import { cn } from '@/utils/ui';
@@ -43,17 +44,19 @@ const MenuItem = ({
   children: ReactNode;
   stepType: StepTypeEnum;
   disabled?: boolean;
-  onClick?: React.MouseEventHandler<HTMLSpanElement>;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
   iconOverride?: React.ReactNode;
 }) => {
   const Icon = STEP_TYPE_TO_ICON[stepType];
   const color = STEP_TYPE_TO_COLOR[stepType];
 
   return (
-    <span
+    <button
+      type="button"
+      disabled={disabled}
       onClick={!disabled ? onClick : noop}
       className={cn(
-        'shadow-xs text-foreground-600 hover:bg-accent flex cursor-pointer items-center gap-2 rounded-lg p-1.5',
+        'shadow-xs text-foreground-600 hover:bg-accent flex cursor-pointer items-center gap-2 rounded-lg p-1.5 text-left',
         {
           'text-foreground-300 cursor-not-allowed': disabled,
         }
@@ -74,7 +77,7 @@ const MenuItem = ({
           coming soon
         </Badge>
       )}
-    </span>
+    </button>
   );
 };
 
@@ -90,7 +93,7 @@ export const AddStepMenu = ({
   onMenuItemClick: (selection: AddStepMenuSelection) => void;
 }) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-  const isHttpRequestStepEnabled = useFeatureFlag(FeatureFlagsKeysEnum.IS_HTTP_REQUEST_STEP_ENABLED);
+  const isToolChannelEnabled = useFeatureFlag(FeatureFlagsKeysEnum.IS_TOOL_CHANNEL_ENABLED);
 
   const handleMenuItemClick = (stepType: StepTypeEnum) => {
     onMenuItemClick({ type: stepType });
@@ -145,6 +148,11 @@ export const AddStepMenu = ({
                 <MenuItem stepType={StepTypeEnum.SMS} onClick={() => handleMenuItemClick(StepTypeEnum.SMS)}>
                   SMS
                 </MenuItem>
+                {isChannelVisibleInUi(ChannelTypeEnum.TOOL, isToolChannelEnabled) && (
+                  <MenuItem stepType={StepTypeEnum.TOOL} onClick={() => handleMenuItemClick(StepTypeEnum.TOOL)}>
+                    Tool
+                  </MenuItem>
+                )}
               </MenuItemsGroup>
             </MenuGroup>
             <MenuGroup>
@@ -159,14 +167,12 @@ export const AddStepMenu = ({
                 <MenuItem stepType={StepTypeEnum.THROTTLE} onClick={() => handleMenuItemClick(StepTypeEnum.THROTTLE)}>
                   Throttle
                 </MenuItem>
-                {isHttpRequestStepEnabled && (
-                  <MenuItem
-                    stepType={StepTypeEnum.HTTP_REQUEST}
-                    onClick={() => handleMenuItemClick(StepTypeEnum.HTTP_REQUEST)}
-                  >
-                    HTTP Request
-                  </MenuItem>
-                )}
+                <MenuItem
+                  stepType={StepTypeEnum.HTTP_REQUEST}
+                  onClick={() => handleMenuItemClick(StepTypeEnum.HTTP_REQUEST)}
+                >
+                  HTTP Request
+                </MenuItem>
               </MenuItemsGroup>
             </MenuGroup>
           </div>

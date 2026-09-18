@@ -6,7 +6,7 @@ import {
 } from '@novu/api/models/components';
 import { buildSlug } from '@novu/application-generic';
 import { NotificationTemplateEntity } from '@novu/dal';
-import { ShortIsPrefixEnum } from '@novu/shared';
+import { ShortIsPrefixEnum, StepTypeEnum } from '@novu/shared';
 import { UserSession } from '@novu/testing';
 import { expect } from 'chai';
 import { randomBytes } from 'crypto';
@@ -281,6 +281,54 @@ describe('Patch Subscriber Preferences - /subscribers/:subscriberId/preferences 
     expect(response.result.workflows[0].channels).to.deep.equal({ inApp: true, email: false });
   });
 
+  it('should patch workflow preferences with organization context as string id (dashboard shape)', async () => {
+    const organizationContextId = `org_ctx_${randomBytes(6).toString('hex')}`;
+
+    const patchRes = await session.testAgent
+      .patch(`/v2/subscribers/${subscriber.subscriberId}/preferences`)
+      .set('Authorization', `ApiKey ${session.apiKey}`)
+      .send({
+        workflowId: workflow._id,
+        channels: { email: false, in_app: true },
+        context: { organization: organizationContextId },
+      });
+
+    expect(patchRes.status).to.equal(200);
+
+    const listResponse = await novuClient.subscribers.preferences.list({
+      subscriberId: subscriber.subscriberId,
+      contextKeys: [`organization:${organizationContextId}`],
+    });
+
+    expect(listResponse.result.workflows).to.have.lengthOf(1);
+    expect(listResponse.result.workflows[0].workflow.identifier).to.equal(workflow.triggers[0].identifier);
+    expect(listResponse.result.workflows[0].channels).to.deep.include({ email: false, inApp: true });
+  });
+
+  it('should patch workflow preferences with organization context as { id, data } object', async () => {
+    const organizationContextId = `org_ctx_${randomBytes(6).toString('hex')}`;
+
+    const patchRes = await session.testAgent
+      .patch(`/v2/subscribers/${subscriber.subscriberId}/preferences`)
+      .set('Authorization', `ApiKey ${session.apiKey}`)
+      .send({
+        workflowId: workflow._id,
+        channels: { email: true, in_app: false },
+        context: { organization: { id: organizationContextId, data: { tier: 'pro' } } },
+      });
+
+    expect(patchRes.status).to.equal(200);
+
+    const listResponse = await novuClient.subscribers.preferences.list({
+      subscriberId: subscriber.subscriberId,
+      contextKeys: [`organization:${organizationContextId}`],
+    });
+
+    expect(listResponse.result.workflows).to.have.lengthOf(1);
+    expect(listResponse.result.workflows[0].workflow.identifier).to.equal(workflow.triggers[0].identifier);
+    expect(listResponse.result.workflows[0].channels).to.deep.include({ email: true, inApp: false });
+  });
+
   it('should create separate preferences for different contexts', async () => {
     // Create preference for context A
     await novuClient.subscribers.preferences.update(
@@ -341,6 +389,88 @@ describe('Patch Subscriber Preferences - /subscribers/:subscriberId/preferences 
       contextKeys: ['tenant:acme'],
     });
     expect(listResponse.result.workflows[0].channels.email).to.equal(false);
+  });
+
+  it('should round-trip tool channel preferences via single PATCH', async () => {
+    const toolWorkflow = await session.createTemplate({
+      noFeedId: true,
+      steps: [
+        {
+          type: StepTypeEnum.TOOL,
+          content: 'Tool step content',
+        },
+      ],
+    });
+
+    const singlePatchRes = await session.testAgent
+      .patch(`/v2/subscribers/${subscriber.subscriberId}/preferences`)
+      .set('Authorization', `ApiKey ${session.apiKey}`)
+      .send({
+        workflowId: toolWorkflow._id,
+        channels: { tool: false },
+      });
+
+    expect(singlePatchRes.status).to.equal(200);
+
+    const singleWorkflowPreference = singlePatchRes.body.data.workflows.find(
+      (wf: { workflow: { identifier: string } }) => wf.workflow.identifier === toolWorkflow.triggers[0].identifier
+    );
+    expect(singleWorkflowPreference).to.exist;
+    expect(singleWorkflowPreference.channels.tool).to.equal(false);
+
+    const listRes = await session.testAgent.get(`/v2/subscribers/${subscriber.subscriberId}/preferences`);
+    expect(listRes.status).to.equal(200);
+
+    const listedWorkflowPreference = listRes.body.data.workflows.find(
+      (wf: { workflow: { identifier: string } }) => wf.workflow.identifier === toolWorkflow.triggers[0].identifier
+    );
+    expect(listedWorkflowPreference).to.exist;
+    expect(listedWorkflowPreference.channels.tool).to.equal(false);
+  });
+
+  it('should round-trip tool channel preferences via bulk PATCH', async () => {
+    const toolWorkflow = await session.createTemplate({
+      noFeedId: true,
+      steps: [
+        {
+          type: StepTypeEnum.TOOL,
+          content: 'Tool step content',
+        },
+      ],
+    });
+
+    await session.testAgent
+      .patch(`/v2/subscribers/${subscriber.subscriberId}/preferences`)
+      .set('Authorization', `ApiKey ${session.apiKey}`)
+      .send({
+        workflowId: toolWorkflow._id,
+        channels: { tool: false },
+      });
+
+    const bulkPatchRes = await session.testAgent
+      .patch(`/v2/subscribers/${subscriber.subscriberId}/preferences/bulk`)
+      .set('Authorization', `ApiKey ${session.apiKey}`)
+      .send({
+        preferences: [
+          {
+            workflowId: toolWorkflow._id,
+            channels: { tool: true },
+          },
+        ],
+      });
+
+    expect(bulkPatchRes.status).to.equal(200);
+    expect(bulkPatchRes.body.data).to.be.an('array').with.lengthOf(1);
+    expect(bulkPatchRes.body.data[0].channels.tool).to.equal(true);
+
+    const listRes = await session.testAgent.get(`/v2/subscribers/${subscriber.subscriberId}/preferences`);
+    expect(listRes.status).to.equal(200);
+
+    const listedWorkflowPreference = listRes.body.data.workflows.find(
+      (wf: { workflow: { identifier: string } }) => wf.workflow.identifier === toolWorkflow.triggers[0].identifier
+    );
+    expect(listedWorkflowPreference).to.exist;
+    expect(listedWorkflowPreference.channels.tool).to.equal(true);
   });
 });
 

@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InstrumentUsecase, shortId } from '@novu/application-generic';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { encryptChannelConnectionAuth, InstrumentUsecase, shortId } from '@novu/application-generic';
 import {
   ChannelConnectionEntity,
   ChannelConnectionRepository,
@@ -8,6 +8,8 @@ import {
   IntegrationRepository,
   SubscriberRepository,
 } from '@novu/dal';
+import { validateAndNormalizeConnectionAuth, validateConnectionMode } from '../channel-connection.utils';
+import { assertSubscriberExists } from '../ensure-connect-dashboard-subscriber';
 import { CreateChannelConnectionCommand } from './create-channel-connection.command';
 
 @Injectable()
@@ -24,9 +26,10 @@ export class CreateChannelConnection {
     this.validateResourceOrContext(command);
 
     const integration = await this.findIntegration(command);
+    const auth = validateAndNormalizeConnectionAuth(command.auth, integration);
     const contextKeys = await this.resolveContexts(command);
 
-    await this.assertSubscriberExists(command);
+    await this.ensureSubscriberExists(command);
     await this.ensureUniqueConnectionForResourceAndContext(command, integration, contextKeys);
 
     const identifier = command.identifier || this.generateIdentifier();
@@ -44,20 +47,27 @@ export class CreateChannelConnection {
       );
     }
 
-    const channelConnection = await this.createChannelConnection(command, identifier, integration, contextKeys);
+    const channelConnection = await this.createChannelConnection(command, identifier, integration, contextKeys, auth);
 
     return channelConnection;
   }
 
   private validateResourceOrContext(command: CreateChannelConnectionCommand) {
-    const { subscriberId, context } = command;
-
-    if (!subscriberId && !context) {
-      throw new BadRequestException('Either subscriberId or context must be provided');
-    }
+    validateConnectionMode({
+      connectionMode: command.connectionMode,
+      subscriberId: command.subscriberId,
+      context: command.context,
+      contextKeys: command.contextKeys,
+    });
   }
 
   private async resolveContexts(command: CreateChannelConnectionCommand): Promise<string[]> {
+    // A session-validated context arrives pre-resolved as keys — persist verbatim
+    // (never re-resolve/trust the raw payload alongside it).
+    if (command.contextKeys?.length) {
+      return command.contextKeys;
+    }
+
     if (!command.context) {
       return [];
     }
@@ -108,8 +118,11 @@ export class CreateChannelConnection {
     command: CreateChannelConnectionCommand,
     identifier: string,
     integration: IntegrationEntity,
-    contextKeys: string[]
+    contextKeys: string[],
+    auth: CreateChannelConnectionCommand['auth']
   ): Promise<ChannelConnectionEntity> {
+    const subscriberId = command.connectionMode === 'shared' ? undefined : command.subscriberId;
+
     const channelConnection = await this.channelConnectionRepository.create({
       identifier,
       integrationIdentifier: integration.identifier,
@@ -117,29 +130,25 @@ export class CreateChannelConnection {
       channel: integration.channel,
       _organizationId: command.organizationId,
       _environmentId: command.environmentId,
-      subscriberId: command.subscriberId,
+      subscriberId,
       contextKeys,
       workspace: command.workspace,
-      auth: command.auth,
+      auth: encryptChannelConnectionAuth(auth),
     });
 
     return channelConnection;
   }
 
-  private async assertSubscriberExists(command: CreateChannelConnectionCommand) {
+  private async ensureSubscriberExists(command: CreateChannelConnectionCommand) {
     if (!command.subscriberId) {
       return;
     }
 
-    const found = await this.subscriberRepository.findOne({
+    await assertSubscriberExists({
       subscriberId: command.subscriberId,
-      _organizationId: command.organizationId,
-      _environmentId: command.environmentId,
+      environmentId: command.environmentId,
+      subscriberRepository: this.subscriberRepository,
     });
-
-    if (!found) throw new NotFoundException(`Subscriber not found: ${command.subscriberId}`);
-
-    return;
   }
 
   private async findIntegration(command: CreateChannelConnectionCommand) {
@@ -157,6 +166,6 @@ export class CreateChannelConnection {
   }
 
   private generateIdentifier(): string {
-    return `chconn-${shortId(6)}`;
+    return `chconn_${shortId(12)}`;
   }
 }

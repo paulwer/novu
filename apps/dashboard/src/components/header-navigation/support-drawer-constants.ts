@@ -7,6 +7,8 @@ import {
   RiKey2Line,
   RiLayoutGridLine,
   RiMailLine,
+  RiMessage3Line,
+  RiRobot2Line,
   RiRouteFill,
   RiSettings3Line,
   RiStore3Line,
@@ -15,9 +17,9 @@ import {
 } from 'react-icons/ri';
 import { useLocation } from 'react-router-dom';
 import { Bell, NovuIcon } from '@/components/icons';
+import { BotIcon } from '@/components/icons/bot';
 
 export const DRAWER_WIDTH_DEFAULT = 350;
-export const DRAWER_WIDTH_EXPANDED = 700;
 
 const DOCS_BASE_URL = 'https://docs.novu.co';
 const UTM_SUFFIX = '?utm_campaign=support_drawer';
@@ -31,13 +33,6 @@ export function docsUrl(path = '') {
   const url = `${DOCS_BASE_URL}${basePath}${UTM_SUFFIX}`;
 
   return hash ? `${url}#${hash}` : url;
-}
-
-export function toEmbedUrl(url: string) {
-  const [baseWithParams, hash] = url.split('#');
-  const embedUrl = `${baseWithParams}&full=true`;
-
-  return hash ? `${embedUrl}#${hash}` : embedUrl;
 }
 
 export type SuggestionItem = {
@@ -77,9 +72,68 @@ type RouteContext =
   | 'settings'
   | 'environments'
   | 'contexts'
+  | 'agents'
+  | 'conversations'
   | 'default';
 
+const AGENT_SUGGESTIONS: SuggestionItem[] = [
+  {
+    icon: BotIcon,
+    title: 'What is ACI?',
+    description: 'Connect AI agents to Slack, Teams, WhatsApp, Telegram, and email.',
+    url: docsUrl('/agents/get-started/what-is-aci'),
+  },
+  {
+    icon: RiCodeLine,
+    title: 'Connect AI SDK to Slack',
+    description: 'Example: wire Vercel AI SDK to Slack and reply from onMessage.',
+    url: docsUrl('/agents/get-started/ai-sdk'),
+  },
+  {
+    icon: RiRobot2Line,
+    title: 'Claude managed agent',
+    description: 'Example: launch a managed agent with no bridge server required.',
+    url: docsUrl('/agents/get-started/claude-managed'),
+  },
+];
+
+const AGENT_GETTING_STARTED: SuggestionItem[] = [
+  {
+    icon: BotIcon,
+    title: 'Mental model',
+    description: 'Trace how messages flow from a channel to your agent and back.',
+    url: docsUrl('/agents/get-started/mental-model'),
+  },
+  {
+    icon: RiStore3Line,
+    title: 'Agents and providers',
+    description: 'Connect Slack, Teams, WhatsApp, and more to one agent.',
+    url: docsUrl('/agents/get-started/agents-and-providers'),
+  },
+  {
+    icon: RiMessage3Line,
+    title: 'Agent conversations',
+    description: 'Inspect threads, history, and lifecycle across providers.',
+    url: docsUrl('/agents/conversations'),
+  },
+];
+
 const CONTEXTUAL_SUGGESTIONS: Record<RouteContext, SuggestionItem[]> = {
+  agents: AGENT_SUGGESTIONS,
+  conversations: [
+    {
+      icon: RiMessage3Line,
+      title: 'Agent conversations',
+      description: 'View, inspect, and manage agent threads across providers.',
+      url: docsUrl('/agents/conversations'),
+    },
+    {
+      icon: BotIcon,
+      title: 'What is ACI?',
+      description: 'Connect AI agents to Slack, Teams, WhatsApp, Telegram, and email.',
+      url: docsUrl('/agents/get-started/what-is-aci'),
+    },
+  ],
   workflows: [
     {
       icon: RiRouteFill,
@@ -98,7 +152,7 @@ const CONTEXTUAL_SUGGESTIONS: Record<RouteContext, SuggestionItem[]> = {
     {
       icon: RiRouteFill,
       title: 'Understand workflow editor',
-      description: 'What the workflow editor does—like Delay, Digest, Email, and when to use them.',
+      description: 'What the workflow editor does, like Delay, Digest, Email, and when to use them.',
       url: docsUrl('/platform/workflow/overview'),
     },
     {
@@ -126,8 +180,8 @@ const CONTEXTUAL_SUGGESTIONS: Record<RouteContext, SuggestionItem[]> = {
     {
       icon: RiStore3Line,
       title: 'Connect providers',
-      description: 'Email, SMS, chat—whatever you need to reach users.',
-      url: docsUrl('/integrations/overview'),
+      description: 'Email, SMS, chat, whatever you need to reach users.',
+      url: docsUrl('/platform/integrations'),
     },
     {
       icon: RiSettings3Line,
@@ -157,7 +211,7 @@ const CONTEXTUAL_SUGGESTIONS: Record<RouteContext, SuggestionItem[]> = {
       icon: RiUserLine,
       title: 'Topic subscriptions',
       description: 'Manage who receives notifications for each topic.',
-      url: docsUrl('/concepts/topics#dynamic-and-decoupled-grouping'),
+      url: docsUrl('/platform/concepts/topics#dynamic-and-decoupled-grouping'),
     },
   ],
   webhooks: [
@@ -165,13 +219,13 @@ const CONTEXTUAL_SUGGESTIONS: Record<RouteContext, SuggestionItem[]> = {
       icon: RiGlobalLine,
       title: 'Webhook setup',
       description: 'Receive real-time updates about notification events.',
-      url: docsUrl('/platform/additional-resources/webhooks'),
+      url: docsUrl('/platform/developer/webhooks/webhooks'),
     },
     {
       icon: RiCodeLine,
       title: 'Webhook events',
       description: 'Learn about the events you can subscribe to.',
-      url: docsUrl('/platform/additional-resources/webhooks#supported-event-types'),
+      url: docsUrl('/platform/developer/webhooks/event-types'),
     },
   ],
   layouts: [
@@ -227,19 +281,19 @@ const CONTEXTUAL_SUGGESTIONS: Record<RouteContext, SuggestionItem[]> = {
       icon: RiBuildingLine,
       title: 'Understanding contexts',
       description: 'Learn how to create, update, and delete contexts to manage reusable metadata.',
-      url: docsUrl('/platform/workflow/contexts/manage-contexts'),
+      url: docsUrl('/platform/workflow/advanced-features/contexts/manage-contexts'),
     },
     {
       icon: RiCodeLine,
       title: 'Context object schema',
       description: 'Learn about context types, IDs, and data formats for storing metadata.',
-      url: docsUrl('/platform/workflow/contexts/manage-contexts#context-object-schema'),
+      url: docsUrl('/platform/workflow/advanced-features/contexts/manage-contexts#context-object-schema'),
     },
     {
       icon: RiSettings3Line,
       title: 'Managing contexts',
       description: 'Create, update, and delete contexts via dashboard or API.',
-      url: docsUrl('/platform/workflow/contexts/manage-contexts#create-a-context'),
+      url: docsUrl('/platform/workflow/advanced-features/contexts/manage-contexts#create-a-context'),
     },
   ],
   settings: DEFAULT_SUGGESTIONS,
@@ -261,6 +315,8 @@ function getRouteContext(pathname: string): RouteContext {
   if (pathname.includes('/environments')) return 'environments';
   if (pathname.includes('/contexts')) return 'contexts';
   if (pathname.includes('/settings')) return 'settings';
+  if (pathname.includes('/agents')) return 'agents';
+  if (pathname.includes('/conversations')) return 'conversations';
 
   return 'default';
 }
@@ -275,7 +331,7 @@ export function useContextualSuggestions(): SuggestionItem[] {
   }, [location.pathname]);
 }
 
-export const GETTING_STARTED: SuggestionItem[] = [
+const DEFAULT_GETTING_STARTED: SuggestionItem[] = [
   {
     icon: NovuIcon,
     title: 'Learn the basics',
@@ -285,13 +341,28 @@ export const GETTING_STARTED: SuggestionItem[] = [
   {
     icon: Bell,
     title: '<Inbox/> Component',
-    description: 'Triggers, delays, emails—mix them like a wizard.',
+    description: 'Triggers, delays, emails, mix them like a wizard.',
     url: docsUrl('/platform/inbox/overview'),
   },
   {
     icon: RiStore3Line,
     title: 'Connect providers',
-    description: 'Email, SMS, chat—whatever you need to reach users.',
-    url: docsUrl('/integrations/overview'),
+    description: 'Email, SMS, chat, whatever you need to reach users.',
+    url: docsUrl('/platform/integrations'),
   },
 ];
+
+const CONTEXTUAL_GETTING_STARTED: Partial<Record<RouteContext, SuggestionItem[]>> = {
+  agents: AGENT_GETTING_STARTED,
+  conversations: AGENT_GETTING_STARTED,
+};
+
+export function useContextualGettingStarted(): SuggestionItem[] {
+  const location = useLocation();
+
+  return useMemo(() => {
+    const context = getRouteContext(location.pathname);
+
+    return CONTEXTUAL_GETTING_STARTED[context] ?? DEFAULT_GETTING_STARTED;
+  }, [location.pathname]);
+}

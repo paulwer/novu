@@ -1,4 +1,4 @@
-import { Logger, OnModuleDestroy } from '@nestjs/common';
+import { BadRequestException, HttpException, Logger, OnModuleDestroy } from '@nestjs/common';
 import { JobTopicNameEnum } from '@novu/shared';
 import {
   getSqsDefaultBatchSize,
@@ -19,15 +19,57 @@ import {
   SQS_DEFAULT_VISIBILITY_TIMEOUT,
   SQS_DEFAULT_WAIT_TIME_SECONDS,
   SqsConsumerService,
+  SqsRetryError,
   SqsService,
 } from '../sqs';
 
 const LOG_CONTEXT = 'WorkerService';
 
+/**
+ * 4xx HTTP statuses that should still be retried because the underlying
+ * condition is transient: request timeout and rate limiting.
+ */
+const TRANSIENT_4XX_STATUSES = new Set<number>([408, 429]);
+
+/**
+ * Decides whether a processor error represents a permanent client-side
+ * failure that cannot succeed on retry. Used as the default policy when
+ * a worker has not registered its own `sqsFailedHandler`: 4xx failures
+ * (bad payload, missing fields, validation, etc.) are acked and
+ * everything else is re-thrown for SQS to redeliver.
+ */
+export function isPermanentClientError(error: unknown): boolean {
+  if (error instanceof BadRequestException) {
+    return true;
+  }
+
+  if (error instanceof HttpException) {
+    const status = error.getStatus();
+
+    return status >= 400 && status < 500 && !TRANSIENT_4XX_STATUSES.has(status);
+  }
+
+  return false;
+}
+
 export type WorkerProcessor = string | Processor<any, unknown, string> | undefined;
 
 export type SqsCompletedHandler = (job: Job<any, unknown, string>) => Promise<void>;
-export type SqsFailedHandler = (job: Job<any, unknown, string>, error: Error) => Promise<boolean>;
+
+/**
+ * How long to wait before the message becomes visible again. Lets a worker
+ * reproduce BullMQ's per-attempt backoff, which SQS has no equivalent of.
+ */
+export interface ISqsFailureOutcome {
+  retry: boolean;
+  retryDelayMs?: number;
+}
+
+/**
+ * Returning a bare boolean keeps the original contract - only workers that
+ * want a custom retry cadence need the object form.
+ */
+export type SqsFailedHandler = (job: Job<any, unknown, string>, error: Error) => Promise<boolean | ISqsFailureOutcome>;
 
 export { WorkerOptions };
 
@@ -79,9 +121,13 @@ export class WorkerBaseService implements INovuWorker, OnModuleDestroy {
    * Register a handler called when an SQS message processing fails.
    * Mirrors BullMQ's `worker.on('failed', ...)` event.
    *
-   * The handler must return a boolean indicating whether SQS should retry the message:
+   * The handler decides whether SQS should retry the message:
    * - `true`: re-throw the error so SQS retries (message stays in queue)
    * - `false`: absorb the error so SQS deletes the message (failure handled in DB)
+   *
+   * Returning `{ retry, retryDelayMs }` instead also sets how long to wait
+   * before the retry, which SQS has no native equivalent of - without it every
+   * attempt waits the flat consumer-wide visibility timeout.
    */
   public setSqsFailedHandler(handler: SqsFailedHandler): void {
     this.sqsFailedHandler = handler;
@@ -116,6 +162,17 @@ export class WorkerBaseService implements INovuWorker, OnModuleDestroy {
       return;
     }
 
+    /*
+     * Precedence:
+     *   1. `getSqsDefaultConcurrency()` — `SQS_DEFAULT_CONCURRENCY` ENV. Global
+     *      ops lever to throttle every SQS consumer at runtime without a code
+     *      change (e.g. downstream incident, DynamoDB hot partition, etc.).
+     *   2. `options.concurrency` — per-worker value the worker declared (e.g.
+     *      WORKFLOW_WORKER_CONCURRENCY=200, WEB_SOCKET_WORKER_CONCURRENCY=400),
+     *      aligned with the BullMQ side via `getWorkerConcurrency`.
+     *   3. `SQS_DEFAULT_MAX_CONCURRENCY` — hardcoded final fallback when neither
+     *      a per-worker value nor the ENV is set.
+     */
     const sqsConcurrency = getSqsDefaultConcurrency() ?? options?.concurrency ?? SQS_DEFAULT_MAX_CONCURRENCY;
 
     const sqsConsumerOptions: ISqsConsumerOptions = {
@@ -170,10 +227,18 @@ export class WorkerBaseService implements INovuWorker, OnModuleDestroy {
         }
       } catch (error) {
         let shouldRetry = true;
+        let retryDelayMs: number | undefined;
 
         if (this.sqsFailedHandler) {
           try {
-            shouldRetry = await this.sqsFailedHandler(jobMock, error as Error);
+            const outcome = await this.sqsFailedHandler(jobMock, error as Error);
+
+            if (typeof outcome === 'boolean') {
+              shouldRetry = outcome;
+            } else {
+              shouldRetry = outcome.retry;
+              retryDelayMs = outcome.retryDelayMs;
+            }
           } catch (handlerError) {
             Logger.error(
               {
@@ -186,9 +251,42 @@ export class WorkerBaseService implements INovuWorker, OnModuleDestroy {
             );
             shouldRetry = true;
           }
+        } else if (isPermanentClientError(error)) {
+          /*
+           * Defensive fallback for any SQS-backed worker that has not
+           * registered its own `sqsFailedHandler`. 4xx errors cannot
+           * succeed on retry, so ack the message instead of letting SQS
+           * redeliver it every visibility timeout until it hits the DLQ.
+           * The four production SQS workers (workflow, subscriber-
+           * process, ws, standard) all register explicit handlers; this
+           * branch protects future additions that forget to.
+           */
+          Logger.warn(
+            {
+              error: error instanceof Error ? error.message : String(error),
+              jobId,
+              topic: this.topic,
+              attemptsMade: meta.receiveCount,
+            },
+            'SQS message has permanent client error, acking without retry',
+            LOG_CONTEXT
+          );
+
+          return;
         }
 
         if (shouldRetry) {
+          /*
+           * Wrapping preserves the original error for logging while telling
+           * the consumer to shorten this message's visibility instead of
+           * leaving it on the flat consumer-wide timeout. A delay of 0 is a
+           * real request to retry immediately - randomised backoffs round down
+           * to it - so only an absent delay falls through to the flat timeout.
+           */
+          if (retryDelayMs !== undefined) {
+            throw new SqsRetryError(error as Error, retryDelayMs);
+          }
+
           throw error;
         }
       }

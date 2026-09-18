@@ -1,18 +1,20 @@
 import { EnvironmentEnum, EnvironmentTypeEnum, PermissionsEnum, ResourceOriginEnum } from '@novu/shared';
 import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useUser } from '@clerk/clerk-react';
+import { useUser } from '@clerk/react';
 import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { InlineToast } from '@/components/primitives/inline-toast';
 import { useWorkflow } from '@/components/workflow-editor/workflow-provider';
 import { useEnvironment } from '@/context/environment/hooks';
 import { useHasPermission } from '@/hooks/use-has-permission';
-import { buildRoute, ROUTES } from '@/utils/routes';
+import { buildRoute } from '@/utils/routes';
 import { Step } from '@/utils/types';
 import { CanvasContext } from './drag-context';
 import { edgeTypes, nodeTypes } from './node-utils';
 import { useCanvasNodesEdges } from './use-canvas-nodes-edges';
+import { useSwitchToDevelopment } from './use-switch-to-development';
+import { useWorkflowEditorRoutes } from './use-workflow-editor-routes';
 import { WorkflowChecklist } from './workflow-checklist';
 
 const panOnDrag = [1, 2];
@@ -21,15 +23,18 @@ const WorkflowCanvasChild = ({
   steps,
   showStepPreview,
   isReadOnly,
+  areConditionsClickable = true,
 }: {
   steps: Step[];
   showStepPreview?: boolean;
   isReadOnly?: boolean;
+  areConditionsClickable?: boolean;
 }) => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useReactFlow();
   const { currentEnvironment } = useEnvironment();
   const { workflow } = useWorkflow();
+  const { editWorkflowRoute } = useWorkflowEditorRoutes();
   const navigate = useNavigate();
   const { user } = useUser();
 
@@ -84,6 +89,7 @@ const WorkflowCanvasChild = ({
   const dragContextValue = useMemo(() => {
     return {
       isReadOnly,
+      areConditionsClickable,
       showStepPreview,
       isCodeFirstWorkflow,
       onNodeDragStart,
@@ -102,6 +108,7 @@ const WorkflowCanvasChild = ({
     };
   }, [
     isReadOnly,
+    areConditionsClickable,
     showStepPreview,
     isCodeFirstWorkflow,
     onNodeDragStart,
@@ -145,7 +152,7 @@ const WorkflowCanvasChild = ({
             unselectNode();
             if (currentEnvironment?.slug && workflow?.slug) {
               navigate(
-                buildRoute(ROUTES.EDIT_WORKFLOW, {
+                buildRoute(editWorkflowRoute, {
                   environmentSlug: currentEnvironment.slug,
                   workflowSlug: workflow.slug,
                 })
@@ -175,32 +182,20 @@ export const WorkflowCanvas = ({
   steps,
   showStepPreview,
   isReadOnly,
+  areConditionsClickable = true,
 }: {
   steps: Step[];
   showStepPreview?: boolean;
   isReadOnly?: boolean;
+  areConditionsClickable?: boolean;
 }) => {
   const has = useHasPermission();
-  const { currentEnvironment, switchEnvironment, oppositeEnvironment } = useEnvironment();
+  const { currentEnvironment } = useEnvironment();
   const { workflow: currentWorkflow } = useWorkflow();
-  const navigate = useNavigate();
+  const { switchToDevelopment } = useSwitchToDevelopment(currentWorkflow?.workflowId);
   const hasPermission = has({ permission: PermissionsEnum.WORKFLOW_WRITE });
   const showReadOnlyOverlay =
     currentEnvironment && currentWorkflow && (!hasPermission || currentEnvironment?.type !== EnvironmentTypeEnum.DEV);
-
-  const handleSwitchToDevelopment = () => {
-    const developmentEnvironment = oppositeEnvironment?.name === 'Development' ? oppositeEnvironment : null;
-
-    if (developmentEnvironment?.slug && currentWorkflow?.workflowId) {
-      switchEnvironment(developmentEnvironment.slug);
-      navigate(
-        buildRoute(ROUTES.EDIT_WORKFLOW, {
-          environmentSlug: developmentEnvironment.slug,
-          workflowSlug: currentWorkflow.workflowId,
-        })
-      );
-    }
-  };
 
   return (
     <ReactFlowProvider>
@@ -209,6 +204,7 @@ export const WorkflowCanvas = ({
           steps={currentWorkflow?.steps || steps || []}
           showStepPreview={showStepPreview}
           isReadOnly={isReadOnly}
+          areConditionsClickable={areConditionsClickable}
         />
 
         {showReadOnlyOverlay && (
@@ -237,7 +233,7 @@ export const WorkflowCanvas = ({
                     ? 'Switch environment'
                     : undefined
                 }
-                onCtaClick={handleSwitchToDevelopment}
+                onCtaClick={switchToDevelopment}
               />
             </div>
           </>

@@ -10,9 +10,16 @@ import {
   PushControlDto,
   SmsControlDto,
   ThrottleControlDto,
+  ToolControlDto,
   WorkflowCommonsFields,
 } from '@novu/application-generic';
-import { SeverityLevelEnum, StepTypeEnum, WorkflowCreationSourceEnum } from '@novu/shared';
+import {
+  SeverityLevelEnum,
+  SLUG_IDENTIFIER_REGEX,
+  StepTypeEnum,
+  slugIdentifierFormatMessage,
+  WorkflowCreationSourceEnum,
+} from '@novu/shared';
 import { Type } from 'class-transformer';
 import { IsArray, IsEnum, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
 import {
@@ -27,6 +34,7 @@ import {
   PushStepUpsertDto,
   SmsStepUpsertDto,
   ThrottleStepUpsertDto,
+  ToolStepUpsertDto,
 } from './create-step.dto';
 import { PreferencesRequestDto } from './preferences.request.dto';
 
@@ -39,6 +47,7 @@ export type StepCreateDto =
   | DelayStepUpsertDto
   | DigestStepUpsertDto
   | ThrottleStepUpsertDto
+  | ToolStepUpsertDto
   | CustomStepUpsertDto
   | HttpRequestStepUpsertDto;
 
@@ -51,6 +60,7 @@ export type StepCreateDto =
   DelayStepUpsertDto,
   DigestStepUpsertDto,
   ThrottleStepUpsertDto,
+  ToolStepUpsertDto,
   CustomStepUpsertDto,
   HttpRequestStepUpsertDto,
   InAppControlDto,
@@ -61,14 +71,15 @@ export type StepCreateDto =
   DelayControlDto,
   DigestControlDto,
   ThrottleControlDto,
+  ToolControlDto,
   CustomControlDto,
   HttpRequestControlDto
 )
 export class CreateWorkflowDto extends WorkflowCommonsFields {
   @ApiProperty({ description: 'Unique identifier for the workflow' })
   @IsString()
-  @Matches(/^[a-zA-Z0-9]+(?:[-_.][a-zA-Z0-9]+)*$/, {
-    message: 'workflowId must be a valid slug format (letters, numbers, hyphens, dot and underscores only)',
+  @Matches(SLUG_IDENTIFIER_REGEX, {
+    message: slugIdentifierFormatMessage('workflowId'),
   })
   workflowId: string;
 
@@ -85,6 +96,7 @@ export class CreateWorkflowDto extends WorkflowCommonsFields {
         { $ref: getSchemaPath(DelayStepUpsertDto) },
         { $ref: getSchemaPath(DigestStepUpsertDto) },
         { $ref: getSchemaPath(ThrottleStepUpsertDto) },
+        { $ref: getSchemaPath(ToolStepUpsertDto) },
         { $ref: getSchemaPath(CustomStepUpsertDto) },
         { $ref: getSchemaPath(HttpRequestStepUpsertDto) },
       ],
@@ -99,6 +111,7 @@ export class CreateWorkflowDto extends WorkflowCommonsFields {
           [StepTypeEnum.DELAY]: getSchemaPath(DelayStepUpsertDto),
           [StepTypeEnum.DIGEST]: getSchemaPath(DigestStepUpsertDto),
           [StepTypeEnum.THROTTLE]: getSchemaPath(ThrottleStepUpsertDto),
+          [StepTypeEnum.TOOL]: getSchemaPath(ToolStepUpsertDto),
           [StepTypeEnum.CUSTOM]: getSchemaPath(CustomStepUpsertDto),
           [StepTypeEnum.HTTP_REQUEST]: getSchemaPath(HttpRequestStepUpsertDto),
         },
@@ -119,6 +132,7 @@ export class CreateWorkflowDto extends WorkflowCommonsFields {
         { name: StepTypeEnum.DELAY, value: DelayStepUpsertDto },
         { name: StepTypeEnum.DIGEST, value: DigestStepUpsertDto },
         { name: StepTypeEnum.THROTTLE, value: ThrottleStepUpsertDto },
+        { name: StepTypeEnum.TOOL, value: ToolStepUpsertDto },
         { name: StepTypeEnum.CUSTOM, value: CustomStepUpsertDto },
         { name: StepTypeEnum.HTTP_REQUEST, value: HttpRequestStepUpsertDto },
       ],
@@ -134,6 +148,7 @@ export class CreateWorkflowDto extends WorkflowCommonsFields {
     | DelayStepUpsertDto
     | DigestStepUpsertDto
     | ThrottleStepUpsertDto
+    | ToolStepUpsertDto
     | CustomStepUpsertDto
     | HttpRequestStepUpsertDto
   )[];

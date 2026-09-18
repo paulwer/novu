@@ -1,3 +1,4 @@
+import { EmailEventStatusEnum } from '@novu/stateless';
 import { Client } from '@sendgrid/client';
 import { MailService } from '@sendgrid/mail';
 import { expect, test, vi } from 'vitest';
@@ -130,6 +131,39 @@ test('should trigger sendgrid correctly with _passthrough', async () => {
   });
 });
 
+test('should send custom MIME alternatives in content array', async () => {
+  const provider = new SendgridEmailProvider(mockConfig);
+  const spy = vi.spyOn(MailService.prototype, 'send').mockImplementation(async () => {
+    return {} as any;
+  });
+  const reactionAlternative = {
+    contentType: 'text/vnd.google.email-reaction+json',
+    content: JSON.stringify({ version: 1, emoji: '👀' }),
+  };
+
+  await provider.sendMessage({
+    ...mockNovuMessage,
+    text: '👀',
+    html: '<p>👀</p>',
+    alternatives: [reactionAlternative],
+  });
+
+  const payload = spy.mock.calls[0][0] as unknown as Record<string, unknown>;
+  expect(payload).not.toHaveProperty('html');
+  expect(payload).toEqual(
+    expect.objectContaining({
+      content: [
+        { type: 'text/plain', value: '👀' },
+        { type: 'text/html', value: '<p>👀</p>' },
+        {
+          type: 'text/vnd.google.email-reaction+json',
+          value: JSON.stringify({ version: 1, emoji: '👀' }),
+        },
+      ],
+    })
+  );
+});
+
 test('should check provider integration correctly', async () => {
   const provider = new SendgridEmailProvider(mockConfig);
   const spy = vi.spyOn(MailService.prototype, 'send').mockImplementation(async () => {
@@ -200,4 +234,82 @@ test('should not set data residency when region is not provided', async () => {
   new SendgridEmailProvider(mockConfig);
 
   expect(setDataResidencySpy).not.toHaveBeenCalled();
+});
+
+test('parseEventBody maps SendGrid blocked event to BLOCKED status', () => {
+  const provider = new SendgridEmailProvider(mockConfig);
+  const externalId = 'sg-msg-blocked-1';
+
+  const result = provider.parseEventBody(
+    {
+      id: externalId,
+      event: 'blocked',
+      attempt: '1',
+      response: 'blocked by suppression',
+    },
+    externalId
+  );
+
+  expect(result).toEqual({
+    status: EmailEventStatusEnum.BLOCKED,
+    date: expect.any(String),
+    externalId,
+    attempts: 1,
+    response: 'blocked by suppression',
+    row: expect.any(String),
+  });
+});
+
+test('parseEventBody processes each batched event by index when message ids repeat', () => {
+  const provider = new SendgridEmailProvider(mockConfig);
+  const messageId = '6a4bdaeb6baa48da73d25308';
+  const batch = [
+    {
+      id: messageId,
+      event: 'delivered',
+      response: '250 OK',
+      attempt: '1',
+    },
+    {
+      id: messageId,
+      event: 'open',
+      attempt: '1',
+    },
+  ];
+
+  const delivered = provider.parseEventBody(batch, messageId, 0);
+  const opened = provider.parseEventBody(batch, messageId, 1);
+
+  expect(delivered?.status).toBe(EmailEventStatusEnum.DELIVERED);
+  expect(opened?.status).toBe(EmailEventStatusEnum.OPENED);
+});
+
+test('parseEventBody falls back to identifier lookup when indexed event does not match', () => {
+  const provider = new SendgridEmailProvider(mockConfig);
+  const batch = [
+    {
+      id: 'message-a',
+      event: 'delivered',
+    },
+    {
+      id: 'message-b',
+      event: 'open',
+    },
+  ];
+
+  const result = provider.parseEventBody(batch, 'message-b', 0);
+
+  expect(result?.status).toBe(EmailEventStatusEnum.OPENED);
+  expect(result?.externalId).toBe('message-b');
+});
+
+test('getMessageId returns one id per batched event including duplicates', () => {
+  const provider = new SendgridEmailProvider(mockConfig);
+  const messageId = '6a4bdaeb6baa48da73d25308';
+  const batch = [
+    { id: messageId, event: 'delivered' },
+    { id: messageId, event: 'open' },
+  ];
+
+  expect(provider.getMessageId(batch)).toEqual([messageId, messageId]);
 });
