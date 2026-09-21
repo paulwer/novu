@@ -20,6 +20,26 @@ function getFeatureFlagValidator(key: FeatureFlagsKeysEnum): ValidatorSpec<strin
   return str({ default: undefined });
 }
 
+// Managed-agent (Thalamus) config is a Novu Cloud concern. On self-hosted (or whenever the URL is
+// blank) we must not run envalid's `url()` validator, which rejects an empty string even with a
+// default — a blank `THALAMUS_CF_URL=` is common in self-hosted .env files and would block boot.
+function getThalamusValidators(): {
+  THALAMUS_CF_URL: ValidatorSpec<string>;
+  THALAMUS_WEBHOOK_SECRET: ValidatorSpec<string>;
+} {
+  if (processEnv.IS_SELF_HOSTED === 'true' || !processEnv.THALAMUS_CF_URL) {
+    return {
+      THALAMUS_CF_URL: str({ default: undefined }),
+      THALAMUS_WEBHOOK_SECRET: str({ default: undefined }),
+    };
+  }
+
+  return {
+    THALAMUS_CF_URL: url(),
+    THALAMUS_WEBHOOK_SECRET: str(),
+  };
+}
+
 export const envValidators = {
   TZ: str({ default: 'UTC' }),
   NODE_ENV: str({ choices: ['dev', 'test', 'production', 'ci', 'local'], default: 'local' }),
@@ -48,10 +68,31 @@ export const envValidators = {
   REDIS_CACHE_SERVICE_PORT: str({ default: '' }),
   REDIS_CACHE_SERVICE_TLS: json({ default: undefined }),
   REDIS_CLUSTER_SERVICE_HOST: str({ default: '' }),
+  REDIS_CLUSTER_SERVICE_PORT: str({ default: '' }),
   REDIS_CLUSTER_SERVICE_PORTS: str({ default: '' }),
+  REDIS_CLUSTER_USERNAME: str({ default: undefined }),
+  REDIS_CLUSTER_PASSWORD: str({ default: undefined }),
+  REDIS_CLUSTER_TLS: str({ default: undefined }),
+  IS_IN_MEMORY_CLUSTER_MODE_ENABLED: bool({ default: false }),
   STORE_NOTIFICATION_CONTENT: bool({ default: false }),
+  STORAGE_SERVICE: str({ default: undefined }),
   WORKER_DEFAULT_CONCURRENCY: num({ default: undefined }),
   WORKER_DEFAULT_LOCK_DURATION: num({ default: undefined }),
+  // SQS queue backend (optional - when unset, jobs are produced to BullMQ only)
+  SQS_QUEUE_URL_STANDARD: str({ default: undefined }),
+  SQS_QUEUE_URL_WORKFLOW: str({ default: undefined }),
+  SQS_QUEUE_URL_PROCESS_SUBSCRIBER: str({ default: undefined }),
+  SQS_QUEUE_URL_WEB_SOCKETS: str({ default: undefined }),
+  SQS_ENDPOINT: str({ default: undefined }),
+  SQS_PAYLOAD_OFFLOAD_BUCKET: str({ default: undefined }),
+  SQS_PAYLOAD_SIZE_THRESHOLD: num({ default: undefined }),
+  // EventBridge Scheduler for delays beyond the SQS 900s cap (optional - when
+  // unset, long delays keep going to BullMQ)
+  EVENTBRIDGE_SCHEDULER_GROUP_PREFIX: str({ default: undefined }),
+  EVENTBRIDGE_SCHEDULER_ROLE_ARN: str({ default: undefined }),
+  EVENTBRIDGE_SCHEDULER_DLQ_ARN: str({ default: undefined }),
+  EVENTBRIDGE_SCHEDULER_MAX_RETRY_ATTEMPTS: num({ default: undefined }),
+  EVENTBRIDGE_SCHEDULER_MAX_EVENT_AGE_SECONDS: num({ default: undefined }),
   ENABLE_OTEL: bool({ default: false }),
   ENABLE_OTEL_LOGS: bool({ default: false }),
   OTEL_PROMETHEUS_PORT: num({ default: 9464 }),
@@ -62,23 +103,26 @@ export const envValidators = {
   NOVU_REGION: str({ default: 'local' }),
   NOVU_SECRET_KEY: str({ default: '' }),
   INTERNAL_SERVICES_API_KEY: str({ default: undefined }),
-  SCHEDULER_URL: str({ default: undefined }),
-  SCHEDULER_API_KEY: str({ default: undefined }),
-  INTERNAL_CALLBACK_API_KEY: str({ default: undefined }),
-  // AI/LLM Configuration
-  AI_LLM_PROVIDER: str({ choices: ['openai', 'anthropic'], default: 'openai' }),
-  AI_LLM_API_KEY: str({ default: '' }),
-  AI_LLM_MODEL: str({ default: '' }),
-  AI_LLM_MAX_OUTPUT_TOKENS: num({ default: 8192 }),
-  AI_LLM_TEMPERATURE: num({ default: 0.7 }),
-  AI_LLM_MAX_RETRIES: num({ default: 3 }),
-  AI_LLM_SERVICE_TIER: str({ choices: ['auto', 'default', 'flex', 'priority'], default: 'priority' }),
-  AI_LLM_PROMPT_CACHE_RETENTION: str({ choices: ['in-memory', '24h'], default: '24h' }),
   STEP_RESOLVER_CF_ACCOUNT_ID: str({ default: undefined }),
   STEP_RESOLVER_CF_API_TOKEN: str({ default: undefined }),
   STEP_RESOLVER_CF_DISPATCH_NAMESPACE: str({ default: undefined }),
-  STEP_RESOLVER_DISPATCH_URL: url({ default: '' }),
+  STEP_RESOLVER_CF_PLACEMENT_REGION: str({ default: undefined }),
+  STEP_RESOLVER_DISPATCH_URL: str({ default: undefined }),
   STEP_RESOLVER_HMAC_SECRET: str({ default: '' }),
+  THALAMUS_CF_API_KEY: str({ default: undefined }),
+  ...getThalamusValidators(),
+  /**
+   * Shared inbound domain for the agent default inbox feature, e.g. `agentconnect.sh`.
+   * When unset the feature is disabled and the worker falls through to the existing
+   * per-tenant Domain/DomainRoute lookup.
+   */
+  NOVU_AGENT_SHARED_INBOUND_DOMAIN: str({ default: undefined }),
+  NOVU_WHATSAPP_APP_ID: str({ default: undefined }),
+  NOVU_WHATSAPP_APP_SECRET: str({ default: undefined }),
+  NOVU_WHATSAPP_CONFIG_ID: str({ default: undefined }),
+  NOVU_MANAGED_CLAUDE_API_KEY: str({ default: undefined }),
+  MAX_NOVU_MANAGED_CLAUDE_CONVERSATIONS: num({ default: 10 }),
+  MAX_NOVU_MANAGED_CLAUDE_TOKENS_PER_CONVERSATION: num({ default: 100_000 }),
   // Novu Cloud third party services
   ...(processEnv.IS_SELF_HOSTED !== 'true' &&
     processEnv.NOVU_ENTERPRISE === 'true' && {
@@ -95,11 +139,36 @@ export const envValidators = {
       NOVU_INTERNAL_SECRET_KEY: str({ default: '' }),
       KEYLESS_ORGANIZATION_ID: str({ desc: 'Required organizationId for Keyless authentication', default: undefined }),
       KEYLESS_USER_EMAIL: str({ desc: 'Required email for Keyless authentication', default: undefined }),
-
+      KEYLESS_ENV_CREATE_CAP_PER_IP_PER_DAY: num({ default: 15 }),
+      KEYLESS_GENERATE_CAP_PER_IP_PER_DAY: num({ default: 5 }),
+      KEYLESS_MAX_AGENTS_PER_ENV: num({ default: 2 }),
+      // ClickHouse
       CLICK_HOUSE_URL: str({ default: '' }),
       CLICK_HOUSE_DATABASE: str({ default: '' }),
       CLICK_HOUSE_USER: str({ default: '' }),
       CLICK_HOUSE_PASSWORD: str({ default: '' }),
+      // AI/LLM Configuration
+      AI_LLM_PROVIDER: str({ choices: ['openai', 'anthropic'], default: 'openai' }),
+      AI_LLM_API_KEY: str({ default: '' }),
+      AI_LLM_MODEL: str({ default: '' }),
+      AI_LLM_MAX_OUTPUT_TOKENS: num({ default: 8192 }),
+      AI_LLM_TEMPERATURE: num({ default: 0.7 }),
+      AI_LLM_MAX_RETRIES: num({ default: 3 }),
+      AI_LLM_SERVICE_TIER: str({ choices: ['auto', 'default', 'flex', 'priority'], default: 'priority' }),
+      AI_LLM_PROMPT_CACHE_RETENTION: str({ choices: ['in-memory', '24h'], default: '24h' }),
+      // Brand enrichment
+      CONTEXT_DEV_API_KEY: str({ default: '' }),
+      ...(['production', 'dev'].includes(processEnv.NODE_ENV)
+        ? {
+            THALAMUS_CF_API_KEY: str(),
+            THALAMUS_CF_URL: url(),
+            THALAMUS_WEBHOOK_SECRET: str(),
+          }
+        : {
+            THALAMUS_CF_API_KEY: str({ default: undefined }),
+            THALAMUS_CF_URL: url({ default: undefined }),
+            THALAMUS_WEBHOOK_SECRET: str({ default: undefined }),
+          }),
     }),
 
   // Feature Flags
@@ -108,7 +177,7 @@ export const envValidators = {
   ) as Record<FeatureFlagsKeysEnum, ValidatorSpec<string | number | boolean | undefined>>),
 
   // Azure validators
-  ...(processEnv.STORAGE_SERVICE === 'AZURE' && {
+  ...((processEnv.STORAGE_SERVICE || '').toUpperCase() === 'AZURE' && {
     AZURE_ACCOUNT_NAME: str(),
     AZURE_ACCOUNT_KEY: str(),
     AZURE_HOST_NAME: str({ default: `https://${processEnv.AZURE_ACCOUNT_NAME}.blob.core.windows.net` }),
@@ -116,13 +185,13 @@ export const envValidators = {
   }),
 
   // GCS validators
-  ...(processEnv.STORAGE_SERVICE === 'GCS' && {
+  ...((processEnv.STORAGE_SERVICE || '').toUpperCase() === 'GCS' && {
     GCS_BUCKET_NAME: str(),
     GCS_DOMAIN: str(),
   }),
 
   // AWS validators
-  ...(processEnv.STORAGE_SERVICE === 'AWS' && {
+  ...((processEnv.STORAGE_SERVICE || '').toUpperCase() === 'AWS' && {
     S3_LOCAL_STACK: str({ default: '' }),
     S3_BUCKET_NAME: str(),
     S3_REGION: str(),

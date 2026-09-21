@@ -1,10 +1,16 @@
 export type { Notification } from '../notifications';
 export type {
+  ConnectChatProps,
   InboxPage,
   InboxProps,
+  MsTeamsConnectButtonProps,
+  MsTeamsLinkUserProps,
+  SlackConnectButtonProps,
+  SlackLinkUserProps,
   SubscriptionButtonWrapperProps,
   SubscriptionPreferencesWrapperProps,
   SubscriptionProps,
+  TelegramConnectButtonProps,
 } from './components';
 export type { BaseNovuUIOptions, NovuUIOptions } from './novuUI';
 export { NovuUI } from './novuUI';
@@ -21,6 +27,10 @@ export type {
   AllTheme,
   BellRenderer,
   BodyRenderer,
+  ChannelConnectButtonAppearanceCallback,
+  ChannelConnectButtonAppearanceCallbackFunction,
+  ChannelConnectButtonAppearanceCallbackKeys,
+  ChannelConnectButtonIconKey,
   ElementStyles,
   IconRenderer,
   InboxAppearance,
@@ -34,6 +44,9 @@ export type {
   InboxLocalization,
   InboxLocalizationKey,
   InboxTheme,
+  MsTeamsLinkUserAppearanceCallback,
+  MsTeamsLinkUserAppearanceCallbackFunction,
+  MsTeamsLinkUserAppearanceCallbackKeys,
   NotificationActionClickHandler,
   NotificationClickHandler,
   NotificationRenderer,
@@ -43,6 +56,9 @@ export type {
   PreferencesFilter,
   PreferencesSort,
   RouterPush,
+  SlackLinkUserAppearanceCallback,
+  SlackLinkUserAppearanceCallbackFunction,
+  SlackLinkUserAppearanceCallbackKeys,
   SubjectRenderer,
   SubscriptionAppearance,
   SubscriptionAppearanceCallback,

@@ -1,3 +1,4 @@
+.novu-dev.local.json
 .worktrees/
 .nyc_output
 build
@@ -6,6 +7,8 @@ src/**.js
 coverage
 *.log
 package-lock.json
+
+terminalOutput
 
 node_modules
 build
@@ -120,7 +123,19 @@ nx-cloud.env
 # Dead code analysis artifacts (generated at runtime)
 .cursor-artifacts/
 
-demos/agent-chat-demo/.next
-demos/agent-chat-demo/.env.local
-demos/agent-chat-demo/tsconfig.tsbuildinfo
-demos/agent-chat-demo/next-env.d.ts
+demos/web-chat-demo/.next
+demos/web-chat-demo/.env.local
+demos/web-chat-demo/tsconfig.tsbuildinfo
+demos/web-chat-demo/next-env.d.ts
+
+.claude/worktrees
+
+# CF Worker
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+**/.wrangler/tmp/**
+
+# Local agent design/plan artifacts (not part of published docs)
+superpowers/
+/tmp/

@@ -16,8 +16,11 @@ import {
   LookBackWindowType,
   PushControlType,
   SmsControlType,
+  ThrottleControlType,
+  ToolControlType,
 } from '../schemas/control';
 import { InAppActionType, InAppControlType } from '../schemas/control/in-app-control.schema';
+import { resolveChatEditorType } from './resolve-chat-editor-type';
 
 // Cast input T_Type to trigger Ajv validation errors - possible undefined
 function sanitizeEmptyInput<T_Type>(input: T_Type, defaultValue: T_Type = undefined as unknown as T_Type): T_Type {
@@ -93,6 +96,9 @@ function sanitizeEmail(controlValues: EmailControlType) {
     disableOutputSanitization: controlValues.disableOutputSanitization,
     layoutId: controlValues.layoutId,
     from: controlValues.from,
+    useProviderDefaults: controlValues.useProviderDefaults,
+    replyTo: controlValues.replyTo,
+    preheader: controlValues.preheader,
   };
 
   return filterNullishValues(emailControls);
@@ -117,13 +123,41 @@ function sanitizePush(controlValues: PushControlType) {
   return filterNullishValues(mappedValues);
 }
 
-function sanitizeChat(controlValues: ChatControlType) {
+type WithProviderOverrides<T> = T & { providerOverrides?: Record<string, unknown> };
+
+/**
+ * Runtime/preview may still nest providerOverrides (stitched or form-sourced).
+ * They are not part of the persisted main control schema — pass them through.
+ */
+function keepProviderOverrides(
+  sanitized: Record<string, unknown>,
+  controlValues: { providerOverrides?: Record<string, unknown> }
+): Record<string, unknown> {
+  if (controlValues.providerOverrides === undefined) {
+    return sanitized;
+  }
+
+  return { ...sanitized, providerOverrides: controlValues.providerOverrides };
+}
+
+function sanitizeChat(controlValues: WithProviderOverrides<ChatControlType>) {
+  const editorType = resolveChatEditorType(controlValues.body, controlValues.editorType);
   const mappedValues: ChatControlType = {
+    body: sanitizeEmptyInput(controlValues.body),
+    skip: controlValues.skip,
+    ...(editorType ? { editorType } : {}),
+  };
+
+  return keepProviderOverrides(filterNullishValues(mappedValues) as Record<string, unknown>, controlValues);
+}
+
+function sanitizeTool(controlValues: WithProviderOverrides<ToolControlType>) {
+  const mappedValues: ToolControlType = {
     body: sanitizeEmptyInput(controlValues.body),
     skip: controlValues.skip,
   };
 
-  return filterNullishValues(mappedValues);
+  return keepProviderOverrides(filterNullishValues(mappedValues) as Record<string, unknown>, controlValues);
 }
 
 function sanitizeDigest(controlValues: DigestControlSchemaType) {
@@ -218,6 +252,18 @@ function sanitizeDelay(controlValues: DelayControlType) {
   }
 
   return filterNullishValues(controlValues);
+}
+
+/**
+ * A fixed throttle never reads `dynamicKey`, but the dashboard form still persists it as an empty
+ * string. The control schema keeps `dynamicKey` optional with `minLength: 1`, so a present-but-empty
+ * value fails validation and surfaces a "DynamicKey is required" issue on a correctly configured
+ * fixed throttle. Drop the unused key; a dynamic throttle keeps it so the issue still surfaces there.
+ */
+function sanitizeThrottle(controlValues: ThrottleControlType) {
+  const shouldDropDynamicKey = controlValues?.type !== 'dynamic' && isEmpty(controlValues?.dynamicKey);
+
+  return filterNullishValues(shouldDropDynamicKey ? { ...controlValues, dynamicKey: undefined } : controlValues);
 }
 
 function sanitizeLayout(controlValues: LayoutControlType) {
@@ -317,13 +363,19 @@ export function dashboardSanitizeControlValues(
         normalizedValues = sanitizePush(controlValues as PushControlType);
         break;
       case StepTypeEnum.CHAT:
-        normalizedValues = sanitizeChat(controlValues as ChatControlType);
+        normalizedValues = sanitizeChat(controlValues as WithProviderOverrides<ChatControlType>);
+        break;
+      case StepTypeEnum.TOOL:
+        normalizedValues = sanitizeTool(controlValues as WithProviderOverrides<ToolControlType>);
         break;
       case StepTypeEnum.DIGEST:
         normalizedValues = sanitizeDigest(controlValues as DigestControlSchemaType);
         break;
       case StepTypeEnum.DELAY:
         normalizedValues = sanitizeDelay(controlValues as DelayControlType);
+        break;
+      case StepTypeEnum.THROTTLE:
+        normalizedValues = sanitizeThrottle(controlValues as ThrottleControlType);
         break;
       case 'layout':
         normalizedValues = sanitizeLayout(controlValues as LayoutControlType);

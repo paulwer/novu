@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
+  assertSafeOutboundUrl,
+  buildInvalidJsonBodyDetail,
   buildNovuSignatureHeader,
+  enhanceStepsMap,
   GetDecryptedSecretKey,
   GetDecryptedSecretKeyCommand,
   HttpClientError,
@@ -9,9 +12,12 @@ import {
   HttpRequestOptions,
   InstrumentUsecase,
   KeyValuePair,
+  resolveHttpRequestBody,
+  SsrfBlockedError,
   shouldIncludeBody,
 } from '@novu/application-generic';
-import { createLiquidEngine } from '@novu/framework/internal';
+import { compileJsonControlValues, createLiquidEngine, repairJsonString } from '@novu/framework/internal';
+import { isOutboundSsrfProtectionEnabled } from '@novu/shared';
 import { Liquid } from 'liquidjs';
 import { TestHttpEndpointResponseDto } from '../../dtos/test-http-endpoint.dto';
 import { TestHttpEndpointCommand } from './test-http-endpoint.command';
@@ -27,6 +33,7 @@ const HTTP_CLIENT_ERROR_STATUS_MAP: Record<HttpClientErrorType, number> = {
   [HttpClientErrorType.CACHE_ERROR]: 502,
   [HttpClientErrorType.PARSE_ERROR]: 502,
   [HttpClientErrorType.HTTP_ERROR]: 500,
+  [HttpClientErrorType.SSRF_BLOCKED]: 400,
   [HttpClientErrorType.UNKNOWN]: 500,
 };
 
@@ -47,38 +54,86 @@ export class TestHttpEndpointUsecase {
 
     const compileContext = this.buildCompileContext(previewPayload);
 
-    const compiled = (await this.compileControlValues(controlValues, compileContext)) as typeof controlValues;
+    let compiled: typeof controlValues;
+    try {
+      compiled = (await this.compileControlValues(controlValues, compileContext)) as typeof controlValues;
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Unknown error';
+
+      throw new BadRequestException(`HTTP request step template compilation failed: ${message}`);
+    }
 
     const resolvedUrl = (compiled.url as string) ?? '';
     const method = (compiled.method as string) ?? 'GET';
     const compiledHeaders = (compiled.headers as KeyValuePair[]) ?? [];
-    const compiledBody = (compiled.body as KeyValuePair[]) ?? [];
+    const compiledBody = compiled.body as string | KeyValuePair[] | undefined;
 
     const resolvedHeaders: Record<string, string> = Object.fromEntries(
       compiledHeaders.filter(({ key }) => key).map(({ key, value }) => [key, value])
     );
 
-    const resolvedBodyPairs: Record<string, unknown> = Object.fromEntries(
-      compiledBody.filter(({ key }) => key).map(({ key, value }) => [key, value])
-    );
+    const startTime = performance.now();
 
-    const hasBody = shouldIncludeBody(resolvedBodyPairs, method);
+    let resolvedBody: Record<string, unknown> | unknown[] | undefined;
+    try {
+      // `repairJsonString` throws on bodies it cannot repair, so it has to stay inside this
+      // try/catch to return a 400 with the reason instead of an unhandled 500.
+      const resolvedBodyInput =
+        typeof compiledBody === 'string' && compiledBody.trim() ? repairJsonString(compiledBody) : compiledBody;
+      resolvedBody = resolveHttpRequestBody(resolvedBodyInput);
+    } catch (parseError) {
+      return {
+        statusCode: 400,
+        body: buildInvalidJsonBodyDetail(parseError, compiledBody),
+        headers: {},
+        durationMs: Math.round(performance.now() - startTime),
+        resolvedRequest: {
+          url: resolvedUrl,
+          method,
+          headers: resolvedHeaders,
+        },
+      };
+    }
 
+    const hasBody = shouldIncludeBody(resolvedBody, method);
+
+    try {
+      assertSafeOutboundUrl(resolvedUrl);
+    } catch (err) {
+      const durationMs = Math.round(performance.now() - startTime);
+      const message = err instanceof SsrfBlockedError ? err.message : String(err);
+
+      return {
+        statusCode: 400,
+        body: { error: message },
+        headers: {},
+        durationMs,
+        resolvedRequest: {
+          url: resolvedUrl,
+          method,
+          headers: resolvedHeaders,
+          ...(hasBody ? { body: resolvedBody } : {}),
+        },
+      };
+    }
+
+    // HMAC is computed only after the URL passes the synchronous SSRF policy.
+    // The connect-time DNS guard and redirect re-validation happen inside
+    // HttpClientService when enforceSsrfProtection is enabled.
     const secretKey = await this.getDecryptedSecretKey.execute(
       GetDecryptedSecretKeyCommand.create({ environmentId: command.user.environmentId })
     );
-    resolvedHeaders['novu-signature'] = buildNovuSignatureHeader(secretKey, hasBody ? resolvedBodyPairs : {});
-
-    const startTime = performance.now();
+    resolvedHeaders['novu-signature'] = buildNovuSignatureHeader(secretKey, hasBody ? resolvedBody : {});
 
     try {
       const response = await this.httpClientService.request<string>({
         url: resolvedUrl,
         method: method as HttpRequestOptions['method'],
         headers: resolvedHeaders,
-        ...(hasBody ? { body: resolvedBodyPairs } : {}),
+        ...(hasBody ? { body: resolvedBody } : {}),
         timeout: 30_000,
         responseType: 'text',
+        enforceSsrfProtection: isOutboundSsrfProtectionEnabled(),
       });
       const durationMs = Math.round(performance.now() - startTime);
 
@@ -91,7 +146,7 @@ export class TestHttpEndpointUsecase {
           url: resolvedUrl,
           method,
           headers: resolvedHeaders,
-          ...(hasBody ? { body: resolvedBodyPairs } : {}),
+          ...(hasBody ? { body: resolvedBody } : {}),
         },
       };
     } catch (error) {
@@ -113,7 +168,7 @@ export class TestHttpEndpointUsecase {
             url: resolvedUrl,
             method,
             headers: resolvedHeaders,
-            ...(hasBody ? { body: resolvedBodyPairs } : {}),
+            ...(hasBody ? { body: resolvedBody } : {}),
           },
         };
       }
@@ -130,7 +185,7 @@ export class TestHttpEndpointUsecase {
     return {
       subscriber: previewPayload.subscriber ?? {},
       payload: previewPayload.payload ?? {},
-      steps: previewPayload.steps ?? {},
+      steps: enhanceStepsMap((previewPayload.steps ?? {}) as Record<string, Record<string, unknown>>),
       env: previewPayload.env ?? {},
       ...(previewPayload.context ? { context: previewPayload.context } : {}),
     };
@@ -140,13 +195,7 @@ export class TestHttpEndpointUsecase {
     values: Record<string, unknown>,
     context: Record<string, unknown>
   ): Promise<unknown> {
-    const compiled = await this.liquidEngine.parseAndRender(JSON.stringify(values), context);
-
-    try {
-      return JSON.parse(compiled);
-    } catch {
-      return values;
-    }
+    return compileJsonControlValues(values, context, this.liquidEngine);
   }
 }
 

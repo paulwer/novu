@@ -9,8 +9,9 @@ import {
   IEmailProvider,
   ISendMessageSuccessResponse,
 } from '@novu/stateless';
-import axios, { AxiosInstance } from 'axios';
+import { AxiosInstance } from 'axios';
 import { BaseProvider, CasingEnum } from '../../../base.provider';
+import { createProviderHttpClient } from '../../../utils/http';
 import { WithPassthrough } from '../../../utils/types';
 import { IEmailBody, IEmailResponse } from './netcore-types';
 
@@ -40,7 +41,7 @@ export class NetCoreProvider extends BaseProvider implements IEmailProvider {
     }
   ) {
     super();
-    this.axiosInstance = axios.create({
+    this.axiosInstance = createProviderHttpClient({
       baseURL: this.BASE_URL,
     });
   }
@@ -91,6 +92,10 @@ export class NetCoreProvider extends BaseProvider implements IEmailProvider {
           content: attachment.file.toString('base64'),
         };
       });
+    }
+
+    if (options.headers && Object.keys(options.headers).length > 0) {
+      data.personalizations[0].headers = options.headers;
     }
 
     const emailOptions = {

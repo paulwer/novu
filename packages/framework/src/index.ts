@@ -1,7 +1,62 @@
 export { Client } from './client';
 export { CronExpression } from './constants';
 export { NovuRequestHandler, type ServeHandlerOptions } from './handler';
-export { workflow } from './resources';
+export type {
+  Agent,
+  AgentAction,
+  AgentActionContext,
+  AgentAttachment,
+  AgentContext,
+  AgentContextPayload,
+  AgentContextValue,
+  AgentConversation,
+  AgentHandlerContext,
+  AgentHandlers,
+  AgentHistoryEntry,
+  AgentHumanResponse,
+  AgentMessage,
+  AgentMessageAuthor,
+  AgentMessageContext,
+  AgentNotification,
+  AgentPlatformContext,
+  AgentReaction,
+  AgentReactionContext,
+  AgentResolveContext,
+  AgentSubscriber,
+  AgentSubscriberAccess,
+  AgentToolCall,
+  CardChild,
+  CardElement,
+  FileRef,
+  HumanAskApproveOptions,
+  HumanChooseOptions,
+  HumanInteractionKind,
+  HumanTellOptions,
+  ImageElement,
+  MessageContent,
+  ReplyHandle,
+  ToolApprovalCard,
+  ToolApprovalConfig,
+  ToolApprovalDecision,
+} from './resources';
+export {
+  Actions,
+  AgentDeliveryError,
+  AgentError,
+  agent,
+  Button,
+  Card,
+  CardLink,
+  CardText,
+  Divider,
+  Image,
+  isFromWorkflow,
+  Select,
+  SelectOption,
+  TextInput,
+  toAgentError,
+  workflow,
+} from './resources';
 export type {
   AnyStepResolver,
   ChatStepResolver,
@@ -10,6 +65,7 @@ export type {
   PushStepResolver,
   SmsStepResolver,
   StepResolverContext,
+  ToolStepResolver,
 } from './resources/step-resolver/step';
 export { step } from './resources/step-resolver/step';
 export { providerSchemas } from './schemas';

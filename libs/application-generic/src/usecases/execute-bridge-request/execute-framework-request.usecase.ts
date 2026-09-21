@@ -106,6 +106,17 @@ export class ExecuteFrameworkRequest {
 
     this.logger.debug(`Making bridge request to \`${url}\``);
 
+    // Always DNS-pin user- or environment-controlled bridge targets (stateless
+    // bridgeUrl, EXTERNAL origin, or explicit opt-in). Previously this was gated
+    // behind isOutboundSsrfProtectionEnabled() (Cloud EE only), which left
+    // self-hosted deployments with only the incomplete sync hostname denylist.
+    // Legitimate private/internal bridges must be allow-listed via
+    // NOVU_SAFE_OUTBOUND_ALLOW.
+    const enforceSsrfProtection =
+      command.enforceSsrfProtection === true ||
+      !!command.statelessBridgeUrl ||
+      command.workflowOrigin === ResourceOriginEnum.EXTERNAL;
+
     try {
       const response = await this.httpClient.request<ExecuteBridgeRequestDto<T>>({
         url,
@@ -117,6 +128,11 @@ export class ExecuteFrameworkRequest {
           limit: retriesLimit,
         },
         rejectUnauthorized: environment.name.toLowerCase() === 'production',
+        // DNS-pinned SSRF guard for user- or environment-controlled bridge
+        // targets (stateless bridgeUrl, EXTERNAL origin, or explicit opt-in).
+        // The safe outbound layer pins the connection to a validated public IP
+        // and re-runs the policy on every redirect target.
+        enforceSsrfProtection,
         onRetry: ({ statusCode, errorCode, delay }) => {
           if (statusCode) {
             this.logger.info(`Retryable status code ${statusCode} detected. Retrying in ${delay}ms`);
@@ -339,6 +355,19 @@ export class ExecuteFrameworkRequest {
               code: BRIDGE_EXECUTION_ERROR.RESPONSE_PARSE_ERROR.code,
               message: BRIDGE_EXECUTION_ERROR.RESPONSE_PARSE_ERROR.message(url),
               statusCode: HttpStatus.BAD_GATEWAY,
+            };
+            break;
+
+          case HttpClientErrorType.SSRF_BLOCKED:
+            // Log the full reason (including resolved IPs / redirect targets)
+            // server-side. Return a stable, client-safe message so the
+            // endpoint can't be used as an authenticated network-recon probe
+            // — see CodeRabbit review on PR #11047.
+            this.logger.warn({ err: error }, `Blocked outbound bridge request to \`${url}\``);
+            bridgeErrorData = {
+              code: error.networkCode || 'SSRF_BLOCKED',
+              message: 'The provided bridge URL is blocked by the outbound SSRF policy.',
+              statusCode: HttpStatus.BAD_REQUEST,
             };
             break;
 

@@ -28,7 +28,7 @@ import {
 } from '@novu/shared';
 import { addBreadcrumb } from '@sentry/node';
 import { PlatformException } from '../../../shared/utils';
-import { SendMessageBase } from './send-message.base';
+import { combineProviderOverrides, SendMessageBase } from './send-message.base';
 import { SendMessageChannelCommand } from './send-message-channel.command';
 import { SendMessageResult, SendMessageStatus } from './send-message-type.usecase';
 
@@ -68,9 +68,7 @@ export class SendMessageSms extends SendMessageBase {
       channelType: ChannelTypeEnum.SMS,
       userId: command.userId,
       identifier: overrideSelectedIntegration as string,
-      filterData: {
-        tenant: command.job.tenant,
-      },
+      filterData: this.getIntegrationFilterData(command),
     });
 
     addBreadcrumb({
@@ -149,7 +147,7 @@ export class SendMessageSms extends SendMessageBase {
     await this.sendSelectedIntegrationExecution(command.job, integration);
 
     const overrides = {
-      ...(command.overrides[integration?.channel] || {}),
+      ...(integration?.channel ? command.overrides[integration.channel] || {} : {}),
       ...(command.overrides[integration?.providerId] || {}),
     };
 
@@ -168,7 +166,7 @@ export class SendMessageSms extends SendMessageBase {
       phone,
       content: this.storeContent() ? content : null,
       providerId: integration?.providerId,
-      payload: messagePayload,
+      payload: this.payloadToPersist(command, messagePayload),
       overrides,
       templateIdentifier: command.identifier,
       stepId: command.step.stepId,
@@ -316,7 +314,7 @@ export class SendMessageSms extends SendMessageBase {
         content: bridgeBody || overrides.content || content,
         id: message._id,
         customData: overrides.customData || {},
-        bridgeProviderData: this.combineOverrides(
+        bridgeProviderData: combineProviderOverrides(
           command.bridgeData,
           command.overrides,
           command.step.stepId,

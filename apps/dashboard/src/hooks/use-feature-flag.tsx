@@ -1,24 +1,55 @@
-import { FeatureFlags, FeatureFlagsKeysEnum, prepareBooleanStringFeatureFlag } from '@novu/shared';
-import { useFlags } from 'launchdarkly-react-client-sdk';
-import { IS_ENTERPRISE, IS_SELF_HOSTED, LAUNCH_DARKLY_CLIENT_SIDE_ID } from '../config';
+import { FeatureFlagsKeysEnum, prepareBooleanStringFeatureFlag } from '@novu/shared';
+import { useFlags, useLDClient } from 'launchdarkly-react-client-sdk';
+import { useEffect, useState } from 'react';
+import { IS_SELF_HOSTED_EE, LAUNCH_DARKLY_CLIENT_SIDE_ID } from '../config';
 
 function isLaunchDarklyEnabled() {
-  if (!!LAUNCH_DARKLY_CLIENT_SIDE_ID && IS_ENTERPRISE) {
+  if (!!LAUNCH_DARKLY_CLIENT_SIDE_ID && IS_SELF_HOSTED_EE) {
     return true;
   }
 
-  return !!LAUNCH_DARKLY_CLIENT_SIDE_ID && !(IS_SELF_HOSTED && IS_ENTERPRISE);
+  return !!LAUNCH_DARKLY_CLIENT_SIDE_ID && !IS_SELF_HOSTED_EE;
 }
 
-export const useFeatureFlagMap = (defaultValue = false): FeatureFlags => {
-  const flags = useFlags();
+/** True once LaunchDarkly has finished its first load (or when LD is not configured). */
+export function useLaunchDarklyReady(): boolean {
+  const ldClient = useLDClient();
+  const [isReady, setIsReady] = useState(!isLaunchDarklyEnabled() || !ldClient);
 
-  return Object.keys(flags).reduce((acc: FeatureFlags, flag: string) => {
-    acc[flag as keyof FeatureFlags] = flags[flag] ?? defaultValue;
+  useEffect(() => {
+    if (!isLaunchDarklyEnabled()) {
+      setIsReady(true);
 
-    return acc;
-  }, {} as FeatureFlags);
-};
+      return;
+    }
+
+    if (!ldClient) {
+      setIsReady(false);
+
+      return;
+    }
+
+    let cancelled = false;
+
+    const waitForReady = async () => {
+      try {
+        await ldClient.waitUntilReady?.();
+      } finally {
+        if (!cancelled) {
+          setIsReady(true);
+        }
+      }
+    };
+
+    void waitForReady();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ldClient]);
+
+  return isReady;
+}
 
 export const useFeatureFlag = (key: FeatureFlagsKeysEnum, defaultValue = false): boolean => {
   const flags = useFlags();

@@ -5,31 +5,35 @@
 import {
   InvalidateQueryFilters,
   QueryClient,
-  UseQueryResult,
-  UseSuspenseQueryResult,
   useQuery,
+  UseQueryResult,
   useSuspenseQuery,
-} from '@tanstack/react-query';
+  UseSuspenseQueryResult,
+} from "@tanstack/react-query";
 import {
   ConnectionError,
   InvalidRequestError,
   RequestAbortedError,
   RequestTimeoutError,
   UnexpectedClientError,
-} from '../models/errors/httpclienterrors.js';
-import * as errors from '../models/errors/index.js';
-import { NovuError } from '../models/errors/novuerror.js';
-import { ResponseValidationError } from '../models/errors/responsevalidationerror.js';
-import { SDKValidationError } from '../models/errors/sdkvalidationerror.js';
-import * as operations from '../models/operations/index.js';
-import { useNovuContext } from './_context.js';
-import { QueryHookOptions, SuspenseQueryHookOptions, TupleToPrefixes } from './_types.js';
+} from "../models/errors/httpclienterrors.js";
+import * as errors from "../models/errors/index.js";
+import { NovuError } from "../models/errors/novuerror.js";
+import { ResponseValidationError } from "../models/errors/responsevalidationerror.js";
+import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
+import * as operations from "../models/operations/index.js";
+import { useNovuContext } from "./_context.js";
+import {
+  QueryHookOptions,
+  SuspenseQueryHookOptions,
+  TupleToPrefixes,
+} from "./_types.js";
 import {
   buildSubscribersNotificationsFeedQuery,
   prefetchSubscribersNotificationsFeed,
   queryKeySubscribersNotificationsFeed,
   SubscribersNotificationsFeedQueryData,
-} from './subscribersNotificationsFeed.core.js';
+} from "./subscribersNotificationsFeed.core.js";
 export {
   buildSubscribersNotificationsFeedQuery,
   prefetchSubscribersNotificationsFeed,
@@ -53,15 +57,27 @@ export type SubscribersNotificationsFeedQueryError =
  * Retrieve subscriber notifications
  *
  * @remarks
- * Retrieve subscriber in-app (inbox) notifications by its unique key identifier **subscriberId**.
+ * This API is deprecated, use v2 API instead. Retrieve subscriber in-app notifications by its unique key identifier **subscriberId**.
+ *
+ * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function useSubscribersNotificationsFeed(
   request: operations.SubscribersV1ControllerGetNotificationsFeedRequest,
-  options?: QueryHookOptions<SubscribersNotificationsFeedQueryData, SubscribersNotificationsFeedQueryError>
-): UseQueryResult<SubscribersNotificationsFeedQueryData, SubscribersNotificationsFeedQueryError> {
+  options?: QueryHookOptions<
+    SubscribersNotificationsFeedQueryData,
+    SubscribersNotificationsFeedQueryError
+  >,
+): UseQueryResult<
+  SubscribersNotificationsFeedQueryData,
+  SubscribersNotificationsFeedQueryError
+> {
   const client = useNovuContext();
   return useQuery({
-    ...buildSubscribersNotificationsFeedQuery(client, request, options),
+    ...buildSubscribersNotificationsFeedQuery(
+      client,
+      request,
+      options,
+    ),
     ...options,
   });
 }
@@ -70,15 +86,27 @@ export function useSubscribersNotificationsFeed(
  * Retrieve subscriber notifications
  *
  * @remarks
- * Retrieve subscriber in-app (inbox) notifications by its unique key identifier **subscriberId**.
+ * This API is deprecated, use v2 API instead. Retrieve subscriber in-app notifications by its unique key identifier **subscriberId**.
+ *
+ * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function useSubscribersNotificationsFeedSuspense(
   request: operations.SubscribersV1ControllerGetNotificationsFeedRequest,
-  options?: SuspenseQueryHookOptions<SubscribersNotificationsFeedQueryData, SubscribersNotificationsFeedQueryError>
-): UseSuspenseQueryResult<SubscribersNotificationsFeedQueryData, SubscribersNotificationsFeedQueryError> {
+  options?: SuspenseQueryHookOptions<
+    SubscribersNotificationsFeedQueryData,
+    SubscribersNotificationsFeedQueryError
+  >,
+): UseSuspenseQueryResult<
+  SubscribersNotificationsFeedQueryData,
+  SubscribersNotificationsFeedQueryError
+> {
   const client = useNovuContext();
   return useSuspenseQuery({
-    ...buildSubscribersNotificationsFeedQuery(client, request, options),
+    ...buildSubscribersNotificationsFeedQuery(
+      client,
+      request,
+      options,
+    ),
     ...options,
   });
 }
@@ -96,7 +124,7 @@ export function setSubscribersNotificationsFeedData(
       idempotencyKey?: string | undefined;
     },
   ],
-  data: SubscribersNotificationsFeedQueryData
+  data: SubscribersNotificationsFeedQueryData,
 ): SubscribersNotificationsFeedQueryData | undefined {
   const key = queryKeySubscribersNotificationsFeed(...queryKeyBase);
 
@@ -118,20 +146,20 @@ export function invalidateSubscribersNotificationsFeed(
       },
     ]
   >,
-  filters?: Omit<InvalidateQueryFilters, 'queryKey' | 'predicate' | 'exact'>
+  filters?: Omit<InvalidateQueryFilters, "queryKey" | "predicate" | "exact">,
 ): Promise<void> {
   return client.invalidateQueries({
     ...filters,
-    queryKey: ['@novu/api', 'Notifications', 'feed', ...queryKeyBase],
+    queryKey: ["@novu/api", "Notifications", "feed", ...queryKeyBase],
   });
 }
 
 export function invalidateAllSubscribersNotificationsFeed(
   client: QueryClient,
-  filters?: Omit<InvalidateQueryFilters, 'queryKey' | 'predicate' | 'exact'>
+  filters?: Omit<InvalidateQueryFilters, "queryKey" | "predicate" | "exact">,
 ): Promise<void> {
   return client.invalidateQueries({
     ...filters,
-    queryKey: ['@novu/api', 'Notifications', 'feed'],
+    queryKey: ["@novu/api", "Notifications", "feed"],
   });
 }

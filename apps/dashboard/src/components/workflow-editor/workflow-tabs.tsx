@@ -1,16 +1,27 @@
 import {
   AiAgentTypeEnum,
   AiResourceTypeEnum,
+  AiWorkflowSuggestion,
   EnvironmentTypeEnum,
   FeatureFlagsKeysEnum,
   PermissionsEnum,
   ResourceOriginEnum,
+  StepTypeEnum,
 } from '@novu/shared';
-import { type ReactNode, useCallback, useMemo, useState } from 'react';
-import { RiArrowDownSLine, RiCodeSSlashLine, RiFileCopyLine, RiPlayCircleLine } from 'react-icons/ri';
+import { FC, SVGProps, useCallback, useMemo, useState } from 'react';
+import { IconType } from 'react-icons/lib';
+import {
+  RiArrowDownSLine,
+  RiCodeSSlashLine,
+  RiFileCopyLine,
+  RiListCheck3,
+  RiPlayCircleLine,
+  RiQuillPenLine,
+} from 'react-icons/ri';
 import { Link, useMatch, useNavigate, useParams } from 'react-router-dom';
+import { useWorkflowEditorRoutes } from '@/components/workflow-editor/use-workflow-editor-routes';
 import { useWorkflow } from '@/components/workflow-editor/workflow-provider';
-
+import { IS_AI_FEATURES_ENABLED } from '@/config';
 import { useAuth } from '@/context/auth/hooks';
 import { useEnvironment } from '@/context/environment/hooks';
 import { useDeleteWorkflow } from '@/hooks/use-delete-workflow';
@@ -26,6 +37,7 @@ import { buildRoute, ROUTES } from '@/utils/routes';
 import { AiChatProvider, NovuCopilotPanel, useAiChat } from '../ai-sidekick';
 import { SidekickToast } from '../ai-sidekick/sidekick-toast';
 import { DeleteWorkflowDialog } from '../delete-workflow-dialog';
+import { Code2 } from '../icons/code-2';
 import { Button } from '../primitives/button';
 import { ButtonGroupItem, ButtonGroupRoot } from '../primitives/button-group';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../primitives/dropdown-menu';
@@ -42,9 +54,11 @@ import { WorkflowCanvas } from './workflow-canvas';
 export const WorkflowTabs = () => {
   const { workflow, isPending: isWorkflowPending, refetch: refetchWorkflow } = useWorkflow();
   const { currentEnvironment, areEnvironmentsInitialLoading } = useEnvironment();
+  const { isLocalRoute, editWorkflowRoute, activityRoute } = useWorkflowEditorRoutes();
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const isAiWorkflowGenerationEnabled = useFeatureFlag(FeatureFlagsKeysEnum.IS_AI_WORKFLOW_GENERATION_ENABLED);
+  const isAiWorkflowGenerationEnabled =
+    useFeatureFlag(FeatureFlagsKeysEnum.IS_AI_WORKFLOW_GENERATION_ENABLED) && IS_AI_FEATURES_ENABLED;
   const activityMatch = useMatch(ROUTES.EDIT_WORKFLOW_ACTIVITY);
   const [isIntegrateDrawerOpen, setIsIntegrateDrawerOpen] = useState(false);
   const [isTriggerDrawerOpen, setIsTriggerDrawerOpen] = useState(false);
@@ -275,9 +289,9 @@ export const WorkflowTabs = () => {
                   mode="ghost"
                   size="xs"
                   onClick={() => {
-                    const activityUrl = `${buildRoute(ROUTES.EDIT_WORKFLOW_ACTIVITY, {
+                    const activityUrl = `${buildRoute(activityRoute, {
                       environmentSlug: currentEnvironment?.slug ?? '',
-                      workflowSlug: workflow?.slug ?? '',
+                      ...(isLocalRoute ? {} : { workflowSlug: workflow?.slug ?? '' }),
                     })}?transactionId=${transactionId}`;
                     navigate(activityUrl);
                     close();
@@ -320,10 +334,42 @@ export const WorkflowTabs = () => {
 
   const { deleteWorkflow, isPending: isDeletePending } = useDeleteWorkflow();
 
+  const newChatSuggestions = useMemo(() => {
+    const suggestions: { label: AiWorkflowSuggestion; icon: IconType | FC<SVGProps<SVGSVGElement>> }[] = [
+      { label: AiWorkflowSuggestion.AUTOCOMPLETE, icon: RiListCheck3 },
+    ];
+
+    const hasAnySteps = (workflow?.steps?.length ?? 0) > 0;
+    if (hasAnySteps) {
+      suggestions.push({ label: AiWorkflowSuggestion.APPLY_CONDITIONS, icon: Code2 });
+    }
+
+    const hasContentSteps = workflow?.steps.some((step) =>
+      [
+        StepTypeEnum.EMAIL,
+        StepTypeEnum.SMS,
+        StepTypeEnum.PUSH,
+        StepTypeEnum.IN_APP,
+        StepTypeEnum.CHAT,
+        StepTypeEnum.TOOL,
+      ].includes(step.type)
+    );
+    if (hasContentSteps) {
+      suggestions.push({ label: AiWorkflowSuggestion.IMPROVE_MESSAGING, icon: RiQuillPenLine });
+    }
+
+    if (workflow?.steps.some((step) => Object.keys(step.issues?.controls ?? {}).length > 0)) {
+      suggestions.push({ label: AiWorkflowSuggestion.FIX_WORKFLOW_ISSUES, icon: RiListCheck3 });
+    }
+
+    return suggestions;
+  }, [workflow]);
+
   const aiChatConfig = useMemo(
     () => ({
       resourceType: AiResourceTypeEnum.WORKFLOW,
       resourceId: workflow?._id,
+      newChatSuggestions,
       agentType: AiAgentTypeEnum.GENERATE_WORKFLOW,
       metadata: { workflowId: workflow?._id },
       isResourceLoading: isWorkflowPending,
@@ -335,7 +381,8 @@ export const WorkflowTabs = () => {
           data.type === 'data-step-updated' ||
           data.type === 'data-step-removed' ||
           data.type === 'data-step-moved' ||
-          data.type === 'data-workflow-metadata-updated'
+          data.type === 'data-workflow-metadata-updated' ||
+          data.type === 'data-payload-schema-updated'
         ) {
           refetchWorkflow({ cancelRefetch: true });
         }
@@ -364,7 +411,16 @@ export const WorkflowTabs = () => {
           }
         : undefined,
     }),
-    [workflow, isWorkflowPending, refetchWorkflow, deleteWorkflow, isDeletePending, navigate, currentEnvironment?.slug]
+    [
+      workflow,
+      isWorkflowPending,
+      newChatSuggestions,
+      refetchWorkflow,
+      deleteWorkflow,
+      isDeletePending,
+      navigate,
+      currentEnvironment?.slug,
+    ]
   );
 
   const content = (
@@ -380,7 +436,7 @@ export const WorkflowTabs = () => {
           >
             {currentEnvironment && workflow ? (
               <Link
-                to={buildRoute(ROUTES.EDIT_WORKFLOW, {
+                to={buildRoute(editWorkflowRoute, {
                   environmentSlug: currentEnvironment?.slug ?? '',
                   workflowSlug: workflow?.slug ?? '',
                 })}
@@ -400,9 +456,9 @@ export const WorkflowTabs = () => {
           >
             {currentEnvironment && workflow ? (
               <Link
-                to={buildRoute(ROUTES.EDIT_WORKFLOW_ACTIVITY, {
+                to={buildRoute(activityRoute, {
                   environmentSlug: currentEnvironment?.slug ?? '',
-                  workflowSlug: workflow?.slug ?? '',
+                  ...(isLocalRoute ? {} : { workflowSlug: workflow?.slug ?? '' }),
                 })}
               >
                 Activity
@@ -498,7 +554,7 @@ export const WorkflowTabs = () => {
   return showCopilot ? <AiChatProvider config={aiChatConfig}>{content}</AiChatProvider> : content;
 };
 
-function WorkflowCopilotSidebar({ children }: { children: ReactNode }) {
+function WorkflowCopilotSidebar({ children }: { children: React.ReactNode }) {
   const { isGenerating } = useAiChat();
 
   return (

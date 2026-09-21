@@ -18,6 +18,7 @@ export const TEMPLATE_CONFIGURABLE_STEP_TYPES: readonly StepTypeEnum[] = [
   StepTypeEnum.SMS,
   StepTypeEnum.CHAT,
   StepTypeEnum.PUSH,
+  StepTypeEnum.TOOL,
   StepTypeEnum.HTTP_REQUEST,
 ];
 
@@ -38,6 +39,7 @@ export const STEP_TYPE_LABELS: Record<StepTypeEnum, string> = {
   [StepTypeEnum.IN_APP]: 'In-App',
   [StepTypeEnum.CHAT]: 'Chat',
   [StepTypeEnum.PUSH]: 'Push',
+  [StepTypeEnum.TOOL]: 'Tool',
   [StepTypeEnum.DIGEST]: 'Digest',
   [StepTypeEnum.DELAY]: 'Delay',
   [StepTypeEnum.THROTTLE]: 'Throttle',
@@ -61,7 +63,6 @@ export const DEFAULT_CONTROL_THROTTLE_TYPE = 'fixed';
 export const DEFAULT_CONTROL_THROTTLE_WINDOW = 1;
 export const DEFAULT_CONTROL_THROTTLE_UNIT = TimeUnitEnum.MINUTES;
 export const DEFAULT_CONTROL_THROTTLE_THRESHOLD = 1;
-export const DEFAULT_CONTROL_THROTTLE_KEY = '';
 
 export const DEFAULT_CONTROL_HTTP_REQUEST_METHOD = 'POST';
 export const DEFAULT_CONTROL_HTTP_REQUEST_HEADERS: unknown[] = [];

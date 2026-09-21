@@ -73,6 +73,44 @@ test('should trigger outlook365 library correctly with _passthrough', async () =
   });
 });
 
+test('should forward cc and bcc to sendMail', async () => {
+  const provider = new Outlook365Provider(mockConfig);
+
+  const response = await provider.sendMessage({
+    ...mockNovuMessage,
+    cc: ['cc@example.com'],
+    bcc: ['bcc@example.com'],
+  });
+
+  expect(response).not.toBeNull();
+  expect(sendMailMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      cc: ['cc@example.com'],
+      bcc: ['bcc@example.com'],
+    })
+  );
+});
+
+test('should forward custom MIME alternatives to sendMail', async () => {
+  const provider = new Outlook365Provider(mockConfig);
+  const reactionAlternative = {
+    contentType: 'text/vnd.google.email-reaction+json',
+    content: JSON.stringify({ version: 1, emoji: '👀' }),
+  };
+
+  const response = await provider.sendMessage({
+    ...mockNovuMessage,
+    alternatives: [reactionAlternative],
+  });
+
+  expect(response).not.toBeNull();
+  expect(sendMailMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      alternatives: [reactionAlternative],
+    })
+  );
+});
+
 test('should check provider integration correctly', async () => {
   const provider = new Outlook365Provider(mockConfig);
 

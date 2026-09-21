@@ -5,7 +5,6 @@ import {
   Delete,
   Get,
   HttpCode,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -14,11 +13,12 @@ import {
 } from '@nestjs/common';
 
 import { ApiBody, ApiExtraModels, ApiOperation, ApiParam, ApiTags, getSchemaPath } from '@nestjs/swagger';
-import { ExternalApiAccessible, FeatureFlagsService, RequirePermissions } from '@novu/application-generic';
+import { ExternalApiAccessible, RequirePermissions } from '@novu/application-generic';
 import {
   ApiRateLimitCategoryEnum,
+  ChannelEndpointByType,
+  ChannelEndpointType,
   ENDPOINT_TYPES,
-  FeatureFlagsKeysEnum,
   PermissionsEnum,
   UserSessionData,
 } from '@novu/shared';
@@ -26,24 +26,41 @@ import {
 import { RequireAuthentication } from '../auth/framework/auth.decorator';
 import { ThrottlerCategory } from '../rate-limiting/guards/throttler.decorator';
 import { ApiCommonResponses, ApiResponse } from '../shared/framework/response.decorator';
+import { KeylessAccessible } from '../shared/framework/swagger/keyless.security';
 import { SdkGroupName, SdkMethodName } from '../shared/framework/swagger/sdk.decorators';
 import { UserSession } from '../shared/framework/user.decorator';
 import { CreateChannelEndpointRequest } from './dtos/create-channel-endpoint-request.dto';
 import {
+  CreateGrafanaOnCallIntegrationEndpointDto,
+  CreateLineUserEndpointDto,
   CreateMsTeamsChannelEndpointDto,
   CreateMsTeamsUserEndpointDto,
+  CreateOpsgenieIntegrationEndpointDto,
+  CreatePagerDutyServiceEndpointDto,
   CreatePhoneEndpointDto,
   CreateSlackChannelEndpointDto,
   CreateSlackUserEndpointDto,
+  CreateTelegramChatEndpointDto,
+  CreateToolWebhookEndpointDto,
+  CreateWebexPersonEndpointDto,
+  CreateWebexRoomEndpointDto,
   CreateWebhookEndpointDto,
 } from './dtos/create-channel-endpoint-variants.dto';
 import { mapChannelEndpointEntityToDto } from './dtos/dto.mapper';
 import {
+  GrafanaOnCallIntegrationEndpointDto,
+  LineUserEndpointDto,
   MsTeamsChannelEndpointDto,
   MsTeamsUserEndpointDto,
+  OpsgenieIntegrationEndpointDto,
+  PagerDutyServiceEndpointDto,
   PhoneEndpointDto,
   SlackChannelEndpointDto,
   SlackUserEndpointDto,
+  TelegramChatEndpointDto,
+  ToolWebhookEndpointDto,
+  WebexPersonEndpointDto,
+  WebexRoomEndpointDto,
   WebhookEndpointDto,
 } from './dtos/endpoint-types.dto';
 import { GetChannelEndpointResponseDto } from './dtos/get-channel-endpoint-response.dto';
@@ -71,12 +88,28 @@ import { UpdateChannelEndpoint } from './usecases/update-channel-endpoint/update
   CreatePhoneEndpointDto,
   CreateMsTeamsChannelEndpointDto,
   CreateMsTeamsUserEndpointDto,
+  CreateTelegramChatEndpointDto,
+  CreateWebexPersonEndpointDto,
+  CreateWebexRoomEndpointDto,
+  CreateLineUserEndpointDto,
+  CreatePagerDutyServiceEndpointDto,
+  CreateOpsgenieIntegrationEndpointDto,
+  CreateGrafanaOnCallIntegrationEndpointDto,
+  CreateToolWebhookEndpointDto,
   SlackChannelEndpointDto,
   SlackUserEndpointDto,
   WebhookEndpointDto,
   PhoneEndpointDto,
   MsTeamsChannelEndpointDto,
-  MsTeamsUserEndpointDto
+  MsTeamsUserEndpointDto,
+  TelegramChatEndpointDto,
+  WebexPersonEndpointDto,
+  WebexRoomEndpointDto,
+  LineUserEndpointDto,
+  PagerDutyServiceEndpointDto,
+  OpsgenieIntegrationEndpointDto,
+  GrafanaOnCallIntegrationEndpointDto,
+  ToolWebhookEndpointDto
 )
 @ExternalApiAccessible()
 @RequireAuthentication()
@@ -89,21 +122,8 @@ export class ChannelEndpointsController {
     private readonly getChannelEndpointUsecase: GetChannelEndpoint,
     private readonly createChannelEndpointUsecase: CreateChannelEndpoint,
     private readonly updateChannelEndpointUsecase: UpdateChannelEndpoint,
-    private readonly deleteChannelEndpointUsecase: DeleteChannelEndpoint,
-    private readonly featureFlagsService: FeatureFlagsService
+    private readonly deleteChannelEndpointUsecase: DeleteChannelEndpoint
   ) {}
-
-  private async checkFeatureEnabled(user: UserSessionData) {
-    const isEnabled = await this.featureFlagsService.getFlag({
-      key: FeatureFlagsKeysEnum.IS_SLACK_TEAMS_ENABLED,
-      defaultValue: false,
-      organization: { _id: user.organizationId },
-    });
-
-    if (!isEnabled) {
-      throw new NotFoundException('Feature not enabled');
-    }
-  }
 
   @Get()
   @ApiOperation({
@@ -112,14 +132,16 @@ export class ChannelEndpointsController {
   })
   @ApiResponse(ListChannelEndpointsResponseDto, 200)
   @ExternalApiAccessible()
+  // Keyless: the `human` CLI setup polls this list to detect the Telegram
+  // /start link landing; the keyless strategy already scopes results to the
+  // caller's own keyless environment.
+  @KeylessAccessible()
   @SdkMethodName('list')
   @RequirePermissions(PermissionsEnum.INTEGRATION_READ)
   async listChannelEndpoints(
     @UserSession() user: UserSessionData,
     @Query() query: ListChannelEndpointsQueryDto
   ): Promise<ListChannelEndpointsResponseDto> {
-    await this.checkFeatureEnabled(user);
-
     const result = await this.listChannelEndpointsUsecase.execute(
       ListChannelEndpointsCommand.create({
         user,
@@ -142,8 +164,8 @@ export class ChannelEndpointsController {
       data: result.data.map(mapChannelEndpointEntityToDto),
       next: result.next,
       previous: result.previous,
-      totalCount: result.totalCount!,
-      totalCountCapped: result.totalCountCapped!,
+      totalCount: result.totalCount ?? 0,
+      totalCountCapped: result.totalCountCapped ?? false,
     };
   }
 
@@ -161,8 +183,6 @@ export class ChannelEndpointsController {
     @UserSession() user: UserSessionData,
     @Param('identifier') identifier: string
   ): Promise<GetChannelEndpointResponseDto> {
-    await this.checkFeatureEnabled(user);
-
     const channelEndpoint = await this.getChannelEndpointUsecase.execute(
       GetChannelEndpointCommand.create({
         environmentId: user.environmentId,
@@ -189,6 +209,14 @@ export class ChannelEndpointsController {
         { $ref: getSchemaPath(CreatePhoneEndpointDto) },
         { $ref: getSchemaPath(CreateMsTeamsChannelEndpointDto) },
         { $ref: getSchemaPath(CreateMsTeamsUserEndpointDto) },
+        { $ref: getSchemaPath(CreateTelegramChatEndpointDto) },
+        { $ref: getSchemaPath(CreateWebexRoomEndpointDto) },
+        { $ref: getSchemaPath(CreateWebexPersonEndpointDto) },
+        { $ref: getSchemaPath(CreateLineUserEndpointDto) },
+        { $ref: getSchemaPath(CreatePagerDutyServiceEndpointDto) },
+        { $ref: getSchemaPath(CreateOpsgenieIntegrationEndpointDto) },
+        { $ref: getSchemaPath(CreateGrafanaOnCallIntegrationEndpointDto) },
+        { $ref: getSchemaPath(CreateToolWebhookEndpointDto) },
       ],
       discriminator: {
         propertyName: 'type',
@@ -199,6 +227,14 @@ export class ChannelEndpointsController {
           [ENDPOINT_TYPES.PHONE]: getSchemaPath(CreatePhoneEndpointDto),
           [ENDPOINT_TYPES.MS_TEAMS_CHANNEL]: getSchemaPath(CreateMsTeamsChannelEndpointDto),
           [ENDPOINT_TYPES.MS_TEAMS_USER]: getSchemaPath(CreateMsTeamsUserEndpointDto),
+          [ENDPOINT_TYPES.TELEGRAM_CHAT]: getSchemaPath(CreateTelegramChatEndpointDto),
+          [ENDPOINT_TYPES.WEBEX_ROOM]: getSchemaPath(CreateWebexRoomEndpointDto),
+          [ENDPOINT_TYPES.WEBEX_PERSON]: getSchemaPath(CreateWebexPersonEndpointDto),
+          [ENDPOINT_TYPES.LINE_USER]: getSchemaPath(CreateLineUserEndpointDto),
+          [ENDPOINT_TYPES.PAGERDUTY_SERVICE]: getSchemaPath(CreatePagerDutyServiceEndpointDto),
+          [ENDPOINT_TYPES.OPSGENIE_INTEGRATION]: getSchemaPath(CreateOpsgenieIntegrationEndpointDto),
+          [ENDPOINT_TYPES.GRAFANA_ONCALL_INTEGRATION]: getSchemaPath(CreateGrafanaOnCallIntegrationEndpointDto),
+          [ENDPOINT_TYPES.TOOL_WEBHOOK]: getSchemaPath(CreateToolWebhookEndpointDto),
         },
       },
     },
@@ -211,8 +247,6 @@ export class ChannelEndpointsController {
     @UserSession() user: UserSessionData,
     @Body() body: CreateChannelEndpointRequest
   ): Promise<GetChannelEndpointResponseDto> {
-    await this.checkFeatureEnabled(user);
-
     const channelEndpoint = await this.createChannelEndpointUsecase.execute(
       CreateChannelEndpointCommand.create({
         environmentId: user.environmentId,
@@ -221,9 +255,10 @@ export class ChannelEndpointsController {
         integrationIdentifier: body.integrationIdentifier,
         connectionIdentifier: body.connectionIdentifier,
         subscriberId: body.subscriberId,
+        createSubscriberIfMissing: body.createSubscriberIfMissing,
         context: body.context,
         type: body.type,
-        endpoint: body.endpoint,
+        endpoint: body.endpoint as ChannelEndpointByType[typeof body.type],
       })
     );
 
@@ -245,14 +280,12 @@ export class ChannelEndpointsController {
     @Param('identifier') identifier: string,
     @Body() body: UpdateChannelEndpointRequestDto
   ): Promise<GetChannelEndpointResponseDto> {
-    await this.checkFeatureEnabled(user);
-
     const channelEndpoint = await this.updateChannelEndpointUsecase.execute(
       UpdateChannelEndpointCommand.create({
         environmentId: user.environmentId,
         organizationId: user.organizationId,
         identifier,
-        endpoint: body.endpoint,
+        endpoint: body.endpoint as ChannelEndpointByType[ChannelEndpointType],
       })
     );
 
@@ -273,8 +306,6 @@ export class ChannelEndpointsController {
     @UserSession() user: UserSessionData,
     @Param('identifier') identifier: string
   ): Promise<void> {
-    await this.checkFeatureEnabled(user);
-
     await this.deleteChannelEndpointUsecase.execute(
       DeleteChannelEndpointCommand.create({
         environmentId: user.environmentId,

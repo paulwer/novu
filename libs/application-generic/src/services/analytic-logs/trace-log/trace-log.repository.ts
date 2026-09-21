@@ -142,134 +142,6 @@ export class TraceLogRepository extends LogRepository<typeof traceLogSchema, Tra
     );
   }
 
-  async getInteractionTrendData(
-    environmentId: string,
-    organizationId: string,
-    startDate: Date,
-    endDate: Date,
-    workflowIds?: string[]
-  ): Promise<Array<{ date: string; event_type: string; count: string }>> {
-    const workflowFilter =
-      workflowIds && workflowIds.length > 0 ? `AND traces.workflow_id IN {workflowIds:Array(String)}` : '';
-
-    const query = `
-      SELECT 
-        toDate(traces.created_at) as date,
-        traces.event_type,
-        count(*) as count
-      FROM traces
-      WHERE 
-        traces.environment_id = {environmentId:String} 
-        AND traces.organization_id = {organizationId:String}
-        AND traces.entity_type = 'step_run'
-        AND traces.created_at >= {startDate:DateTime64(3)}
-        AND traces.created_at <= {endDate:DateTime64(3)}
-        AND traces.event_type IN ('message_seen', 'message_read', 'message_snoozed', 'message_archived')
-        ${workflowFilter}
-      GROUP BY date, traces.event_type
-      ORDER BY date, traces.event_type
-    `;
-
-    const params: Record<string, unknown> = {
-      environmentId,
-      organizationId,
-      startDate: LogRepository.formatDateTime64(startDate),
-      endDate: LogRepository.formatDateTime64(endDate),
-    };
-
-    if (workflowIds && workflowIds.length > 0) {
-      params.workflowIds = workflowIds;
-    }
-
-    const result = await this.clickhouseService.query<{
-      date: string;
-      event_type: string;
-      count: string;
-    }>({
-      query,
-      params,
-    });
-
-    return result.data;
-  }
-
-  async getTotalInteractionsData(
-    environmentId: string,
-    organizationId: string,
-    startDate: Date,
-    endDate: Date,
-    previousStartDate: Date,
-    previousEndDate: Date,
-    workflowIds?: string[]
-  ): Promise<{ currentPeriod: number; previousPeriod: number }> {
-    const workflowFilter =
-      workflowIds && workflowIds.length > 0 ? `AND workflow_id IN {workflowIds:Array(String)}` : '';
-
-    const currentQuery = `
-      SELECT count(*) as count
-      FROM traces
-      WHERE 
-        environment_id = {environmentId:String} 
-        AND organization_id = {organizationId:String}
-        AND created_at >= {startDate:DateTime64(3)}
-        AND created_at <= {endDate:DateTime64(3)}
-        AND entity_type = 'step_run'
-        AND event_type IN ('message_seen', 'message_read', 'message_snoozed', 'message_archived')
-        ${workflowFilter}
-    `;
-
-    const previousQuery = `
-      SELECT count(*) as count
-      FROM traces
-      WHERE 
-        environment_id = {environmentId:String} 
-        AND organization_id = {organizationId:String}
-        AND created_at >= {previousStartDate:DateTime64(3)}
-        AND created_at <= {previousEndDate:DateTime64(3)}
-        AND entity_type = 'step_run'
-        AND event_type IN ('message_seen', 'message_read', 'message_snoozed', 'message_archived')
-        ${workflowFilter}
-    `;
-
-    const currentParams: Record<string, unknown> = {
-      environmentId,
-      organizationId,
-      startDate: LogRepository.formatDateTime64(startDate),
-      endDate: LogRepository.formatDateTime64(endDate),
-    };
-
-    const previousParams: Record<string, unknown> = {
-      environmentId,
-      organizationId,
-      previousStartDate: LogRepository.formatDateTime64(previousStartDate),
-      previousEndDate: LogRepository.formatDateTime64(previousEndDate),
-    };
-
-    if (workflowIds && workflowIds.length > 0) {
-      currentParams.workflowIds = workflowIds;
-      previousParams.workflowIds = workflowIds;
-    }
-
-    const [currentResult, previousResult] = await Promise.all([
-      this.clickhouseService.query<{ count: string }>({
-        query: currentQuery,
-        params: currentParams,
-      }),
-      this.clickhouseService.query<{ count: string }>({
-        query: previousQuery,
-        params: previousParams,
-      }),
-    ]);
-
-    const currentPeriod = parseInt(currentResult.data[0]?.count || '0', 10);
-    const previousPeriod = parseInt(previousResult.data[0]?.count || '0', 10);
-
-    return {
-      currentPeriod,
-      previousPeriod,
-    };
-  }
-
   async getWorkflowRunsTrendData(
     environmentId: string,
     organizationId: string,
@@ -650,6 +522,16 @@ export function mapEventTypeToTitle(eventType: EventType): string {
       return 'Chat phone missing';
     case 'chat_some_channels_skipped':
       return 'Chat some channels skipped';
+    case 'chat_agent_integration_not_linked':
+      return 'Chat integration not linked to the assigned agent';
+    case 'chat_agent_unsupported_endpoint':
+      return 'Chat agent unsupported endpoint';
+    case 'chat_agent_no_eligible_channels':
+      return 'Chat agent has no eligible channels';
+    case 'chat_agent_channels_fallback':
+      return 'Fell back to subscriber chat channels';
+    case 'chat_agent_platform_thread_persist_failed':
+      return 'Chat agent platform thread persist failed';
 
     // MS Teams events
     case 'msteams_bot_not_installed':
@@ -690,6 +572,8 @@ export function mapEventTypeToTitle(eventType: EventType): string {
       return 'Request received';
     case 'request_queued':
       return 'Request queued';
+    case 'request_delivered':
+      return 'Request delivered';
     case 'request_failed':
       return 'Request failed';
     case 'request_organization_not_found':
@@ -742,6 +626,8 @@ export function mapEventTypeToTitle(eventType: EventType): string {
     // Step skipped events
     case 'step_skipped':
       return 'Step skipped';
+    case 'step_conditions_passed':
+      return 'Step conditions matched';
     case 'step_skipped_outside_of_the_schedule':
       return "The step was skipped as it fell outside the subscriber's schedule";
     case 'step_extended_to_schedule':

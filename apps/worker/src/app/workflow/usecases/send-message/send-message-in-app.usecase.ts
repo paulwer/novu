@@ -76,9 +76,7 @@ export class SendMessageInApp extends SendMessageBase {
       environmentId: command.environmentId,
       channelType: ChannelTypeEnum.IN_APP,
       userId: command.userId,
-      filterData: {
-        tenant: command.job.tenant,
-      },
+      filterData: this.getIntegrationFilterData(command),
     });
 
     if (!integration) {
@@ -314,6 +312,7 @@ export class SendMessageInApp extends SendMessageBase {
       },
       organizationId: command.organizationId,
       environmentId: command.environmentId,
+      environment: command.environment,
     });
 
     await this.sendWebhookMessage.execute({
@@ -326,6 +325,7 @@ export class SendMessageInApp extends SendMessageBase {
       },
       organizationId: command.organizationId,
       environmentId: command.environmentId,
+      environment: command.environment,
     });
 
     return {

@@ -1,13 +1,19 @@
-import { ChannelTypeEnum, providers as novuProviders } from '@novu/shared';
+import { ChannelTypeEnum, EmailProviderIdEnum, FeatureFlagsKeysEnum, providers as novuProviders } from '@novu/shared';
 import { useMemo } from 'react';
 import { Skeleton } from '@/components/primitives/skeleton';
 import { useEnvironment } from '@/context/environment/hooks';
+import { useFeatureFlag } from '@/hooks/use-feature-flag';
+import { isChannelVisibleInUi } from '@/utils/channels';
 import { useFetchIntegrations } from '../../../hooks/use-fetch-integrations';
 import { TableIntegration } from '../types';
 import { IntegrationChannelGroup } from './integration-channel-group';
 
+type IntegrationsListVariant = 'default' | 'connectSheet';
+
 type IntegrationsListProps = {
   onItemClick: (item: TableIntegration) => void;
+  excludeIntegrationIds?: string[];
+  variant?: IntegrationsListVariant;
 };
 
 function IntegrationCardSkeleton() {
@@ -33,7 +39,32 @@ function IntegrationCardSkeleton() {
   );
 }
 
-function IntegrationChannelGroupSkeleton() {
+function ConnectSheetTileSkeleton() {
+  return (
+    <div className="flex min-w-0 flex-1 basis-[calc(50%-0.5rem)] flex-col gap-1.5">
+      <Skeleton className="border-stroke-soft h-20 w-full rounded-lg border" />
+      <Skeleton className="h-4 w-24" />
+    </div>
+  );
+}
+
+function IntegrationChannelGroupSkeleton({ variant }: { variant?: IntegrationsListVariant }) {
+  if (variant === 'connectSheet') {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-3 w-24 rounded" />
+        <div className="flex flex-wrap gap-4 p-1.5">
+          <ConnectSheetTileSkeleton />
+          <ConnectSheetTileSkeleton />
+          <ConnectSheetTileSkeleton />
+          <ConnectSheetTileSkeleton />
+          <ConnectSheetTileSkeleton />
+          <ConnectSheetTileSkeleton />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -49,39 +80,48 @@ function IntegrationChannelGroupSkeleton() {
   );
 }
 
-export function IntegrationsList({ onItemClick }: IntegrationsListProps) {
+export function IntegrationsList({ onItemClick, excludeIntegrationIds, variant = 'default' }: IntegrationsListProps) {
   const { currentEnvironment, environments } = useEnvironment();
   const { integrations, isLoading } = useFetchIntegrations();
+  const isToolChannelEnabled = useFeatureFlag(FeatureFlagsKeysEnum.IS_TOOL_CHANNEL_ENABLED);
   const availableIntegrations = novuProviders;
 
   const groupedIntegrations = useMemo(() => {
-    return integrations?.reduce(
-      (acc, integration) => {
-        const channel = integration.channel;
+    return integrations
+      ?.filter((i) => i.providerId !== EmailProviderIdEnum.NovuAgent)
+      .filter((i) => isChannelVisibleInUi(i.channel, isToolChannelEnabled))
+      .reduce(
+        (acc, integration) => {
+          const { channel } = integration;
 
-        if (!acc[channel]) {
-          acc[channel] = [];
-        }
+          // Skip integrations without a channel (e.g. agent-runtime integrations).
+          if (!channel) {
+            return acc;
+          }
 
-        acc[channel].push(integration);
+          if (!acc[channel]) {
+            acc[channel] = [];
+          }
 
-        return acc;
-      },
-      {} as Record<ChannelTypeEnum, typeof integrations>
-    );
-  }, [integrations]);
+          acc[channel].push(integration);
+
+          return acc;
+        },
+        {} as Record<ChannelTypeEnum, typeof integrations>
+      );
+  }, [integrations, isToolChannelEnabled]);
 
   if (isLoading || !currentEnvironment) {
     return (
-      <div className="space-y-6">
-        <IntegrationChannelGroupSkeleton />
-        <IntegrationChannelGroupSkeleton />
+      <div className={variant === 'connectSheet' ? 'space-y-4' : 'space-y-6'}>
+        <IntegrationChannelGroupSkeleton variant={variant} />
+        {variant === 'default' ? <IntegrationChannelGroupSkeleton variant={variant} /> : null}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className={variant === 'connectSheet' ? 'space-y-4' : 'space-y-6'}>
       {Object.entries(groupedIntegrations || {}).map(([channel, channelIntegrations]) => (
         <IntegrationChannelGroup
           key={channel}
@@ -90,6 +130,8 @@ export function IntegrationsList({ onItemClick }: IntegrationsListProps) {
           providers={availableIntegrations}
           environments={environments}
           onItemClick={onItemClick}
+          excludeIntegrationIds={excludeIntegrationIds}
+          variant={variant}
         />
       ))}
     </div>

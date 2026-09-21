@@ -3,7 +3,7 @@ import { deleteEnvironmentVariable } from '@/api/environment-variables';
 import { QueryKeys } from '@/utils/query-keys';
 
 type DeleteEnvironmentVariableArgs = {
-  variableId: string;
+  variableKey: string;
 };
 
 export const useDeleteEnvironmentVariable = (
@@ -12,16 +12,16 @@ export const useDeleteEnvironmentVariable = (
   const queryClient = useQueryClient();
 
   const { mutateAsync, ...rest } = useMutation({
-    mutationFn: ({ variableId }: DeleteEnvironmentVariableArgs) => deleteEnvironmentVariable(variableId),
+    mutationFn: ({ variableKey }: DeleteEnvironmentVariableArgs) => deleteEnvironmentVariable(variableKey),
     ...options,
-    onSuccess: async (_, variables, ctx) => {
-      queryClient.removeQueries({ queryKey: [QueryKeys.fetchEnvironmentVariable, variables.variableId], exact: true });
+    onSuccess: async (_, variables, onMutateResult, context) => {
+      queryClient.removeQueries({ queryKey: [QueryKeys.fetchEnvironmentVariable, variables.variableKey], exact: true });
       queryClient.invalidateQueries({
         queryKey: [QueryKeys.fetchEnvironmentVariables],
         exact: false,
         refetchType: 'all',
       });
-      options?.onSuccess?.(_, variables, ctx);
+      options?.onSuccess?.(_, variables, onMutateResult, context);
     },
   });
 

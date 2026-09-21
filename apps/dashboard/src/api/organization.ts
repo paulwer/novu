@@ -13,16 +13,6 @@ export type UpdateOrganizationSettingsDto = {
   targetLocales?: string[];
 };
 
-export function updateClerkOrgMetadata({
-  data,
-  environment,
-}: {
-  data: UpdateExternalOrganizationDto;
-  environment: IEnvironment;
-}) {
-  return post('/clerk/organization', { environment, body: data });
-}
-
 export async function getOrganizationSettings({
   environment,
 }: {
@@ -39,4 +29,10 @@ export async function updateOrganizationSettings({
   environment: IEnvironment;
 }): Promise<{ data: GetOrganizationSettingsDto }> {
   return patch('/organizations/settings', { environment, body: data });
+}
+
+// Writes onboarding metadata (e.g. productUseCases) onto the external (Clerk) organization
+// and the internal Mongo organization. Org context is resolved server-side from the session.
+export async function updateExternalOrganization(data: UpdateExternalOrganizationDto): Promise<unknown> {
+  return post('/clerk/organization', { body: data });
 }

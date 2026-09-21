@@ -1,9 +1,17 @@
-import { ResourceOriginEnum, RuntimeIssue, Slug, StepTypeEnum } from '@novu/shared';
+import { ChatProviderIdEnum, ResourceOriginEnum, Slug, StepTypeEnum, ToolProviderIdEnum } from '../../types';
+import { RuntimeIssue } from '../../utils/issues';
 import type { JSONSchemaDto } from './json-schema-dto';
+
+export type StepProviderOverrides = Partial<Record<ToolProviderIdEnum | ChatProviderIdEnum, Record<string, unknown>>>;
 
 export type StepResponseDto = {
   controls: Controls;
   controlValues?: Record<string, unknown>;
+  /**
+   * Per-provider content overrides keyed by providerId.
+   * Stored as separate control-value docs — not inside controls.values.
+   */
+  providerOverrides?: StepProviderOverrides | null;
   variables: JSONSchemaDto;
   stepId: string;
   _id: string;
@@ -25,6 +33,7 @@ export type StepUpdateDto = StepCreateDto & {
 export type StepCreateDto = StepDto & {
   // TODO: Rename to controls to align naming with the response DTO
   controlValues?: Record<string, unknown> | null;
+  providerOverrides?: StepProviderOverrides | null;
 };
 
 export type StepDto = {
@@ -54,6 +63,7 @@ export enum UiSchemaGroupEnum {
   SMS = 'SMS',
   CHAT = 'CHAT',
   PUSH = 'PUSH',
+  TOOL = 'TOOL',
   SKIP = 'SKIP',
   LAYOUT = 'LAYOUT',
   HTTP_REQUEST = 'HTTP_REQUEST',
@@ -61,6 +71,7 @@ export enum UiSchemaGroupEnum {
 
 export enum UiComponentEnum {
   EMAIL_EDITOR_SELECT = 'EMAIL_EDITOR_SELECT',
+  CHAT_EDITOR_SELECT = 'CHAT_EDITOR_SELECT',
   LAYOUT_SELECT = 'LAYOUT_SELECT',
   /** @deprecated use EMAIL_BODY instead  */
   BLOCK_EDITOR = 'BLOCK_EDITOR',
@@ -94,6 +105,7 @@ export enum UiComponentEnum {
   SMS_BODY = 'SMS_BODY',
   CHAT_BODY = 'CHAT_BODY',
   PUSH_BODY = 'PUSH_BODY',
+  TOOL_BODY = 'TOOL_BODY',
   PUSH_SUBJECT = 'PUSH_SUBJECT',
   QUERY_EDITOR = 'QUERY_EDITOR',
   DATA = 'DATA',

@@ -7,7 +7,9 @@ import { SQS_DEFAULT_PAYLOAD_SIZE_THRESHOLD } from './types';
 
 const LOG_CONTEXT = 'SqsPayloadOffloadService';
 
-const SQS_LARGE_PAYLOAD_MARKER = '__sqsLargePayload';
+export const SQS_LARGE_PAYLOAD_MARKER = '__sqsLargePayload';
+/** Prefix under which this service writes every offloaded payload. */
+export const SQS_PAYLOAD_KEY_PREFIX = 'sqs-payloads/';
 
 interface ISqsLargePayloadReference {
   [SQS_LARGE_PAYLOAD_MARKER]: {
@@ -69,11 +71,7 @@ export class SqsPayloadOffloadService {
       })
     );
 
-    Logger.log(
-      { topic, messageId, groupId, sizeBytes, key },
-      'Large SQS payload offloaded to S3',
-      LOG_CONTEXT
-    );
+    Logger.log({ topic, messageId, groupId, sizeBytes, key }, 'Large SQS payload offloaded to S3', LOG_CONTEXT);
 
     const reference: ISqsLargePayloadReference = {
       [SQS_LARGE_PAYLOAD_MARKER]: { bucket: this.bucket, key },
@@ -100,9 +98,36 @@ export class SqsPayloadOffloadService {
 
     const { bucket, key } = (parsed as ISqsLargePayloadReference)[SQS_LARGE_PAYLOAD_MARKER];
 
-    const response = await this.s3Client.send(
-      new GetObjectCommand({ Bucket: bucket, Key: key })
-    );
+    /*
+     * The reference arrives in the (untrusted) SQS message body. Never fetch
+     * from the bucket the message names: honoring it would let anyone able to
+     * influence a message body point the worker at an arbitrary S3 bucket -
+     * reading objects the worker's IAM role can access (SSRF-style
+     * exfiltration) or injecting a crafted job payload from a bucket the
+     * attacker controls. Only the configured offload bucket this service
+     * writes to is trusted, and only keys under its own producer prefix.
+     */
+    if (bucket !== this.bucket) {
+      Logger.error(
+        { referencedBucket: bucket, configuredBucket: this.bucket, key },
+        'Rejected SQS offloaded payload reference: bucket does not match the configured offload bucket',
+        LOG_CONTEXT
+      );
+
+      throw new Error('Refusing to resolve SQS offloaded payload from an untrusted bucket');
+    }
+
+    if (!key.startsWith(SQS_PAYLOAD_KEY_PREFIX)) {
+      Logger.error(
+        { bucket, key, expectedPrefix: SQS_PAYLOAD_KEY_PREFIX },
+        'Rejected SQS offloaded payload reference: key is outside the offload prefix',
+        LOG_CONTEXT
+      );
+
+      throw new Error('Refusing to resolve SQS offloaded payload outside the offload key prefix');
+    }
+
+    const response = await this.s3Client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
 
     const resolved = await this.streamToString(response.Body as Readable);
 
@@ -130,7 +155,7 @@ export class SqsPayloadOffloadService {
     const date = new Date().toISOString().slice(0, 10);
     const id = nanoid();
 
-    return `sqs-payloads/${topic}/${groupId}/${date}/${messageId}-${id}.json`;
+    return `${SQS_PAYLOAD_KEY_PREFIX}${topic}/${groupId}/${date}/${messageId}-${id}.json`;
   }
 
   private async streamToString(stream: Readable): Promise<string> {

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InstrumentUsecase } from '@novu/application-generic';
 import {
   ChannelConnectionDBModel,
@@ -16,13 +16,29 @@ export class ListChannelConnections {
 
   @InstrumentUsecase()
   async execute(command: ListChannelConnectionsCommand) {
+    if (command.before && command.after) {
+      throw new BadRequestException('Cannot specify both "before" and "after" cursors at the same time.');
+    }
+
     const filter: FilterQuery<ChannelConnectionDBModel> & EnforceEnvOrOrgIds = {
       _environmentId: command.user.environmentId,
       _organizationId: command.user.organizationId,
     };
 
     if (command.subscriberId) {
-      filter.subscriberId = command.subscriberId;
+      if (command.connectionMode === 'subscriber') {
+        filter.subscriberId = command.subscriberId;
+      } else if (command.connectionMode === 'shared') {
+        filter.subscriberId = null;
+      } else {
+        // Default: return the subscriber's own connections plus any shared ones.
+        // Pushed under `$and` so it composes with the context clause and survives
+        // the cursor-pagination helper's own top-level `$or`.
+        filter.$and = [
+          ...(filter.$and ?? []),
+          { $or: [{ subscriberId: command.subscriberId }, { subscriberId: null }] },
+        ];
+      }
     }
 
     if (command.channel) {
@@ -38,8 +54,13 @@ export class ListChannelConnections {
     }
 
     if (command.contextKeys !== undefined) {
-      const contextQuery = this.channelConnectionRepository.buildContextExactMatchQuery(command.contextKeys);
-      filter.contextKeys = contextQuery.contextKeys;
+      // Apply context filter under `$and` so it survives the cursor-pagination
+      // helper, which sets its own top-level `$or` and would otherwise drop
+      // the `$or` form returned for the empty/default-context case.
+      filter.$and = [
+        ...(filter.$and ?? []),
+        this.channelConnectionRepository.buildContextExactMatchQuery(command.contextKeys),
+      ];
     }
 
     let channelConnection: ChannelConnectionEntity | null = null;

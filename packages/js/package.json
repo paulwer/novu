@@ -1,7 +1,12 @@
 {
   "name": "@novu/js",
-  "version": "3.14.1",
-  "repository": "https://github.com/novuhq/novu",
+  "version": "3.19.2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/novuhq/novu",
+    "directory": "packages/js"
+  },
+  "homepage": "https://novu.co",
   "description": "Novu JavaScript SDK for <Inbox />",
   "author": "",
   "license": "ISC",
@@ -70,7 +75,7 @@
     "start:server": "http-server ./dist -p 4010",
     "prebuild": "cp ./src/ui/index.css ./src/ui/index.directcss",
     "build": "pnpm run clean && NODE_ENV=production tsup",
-    "postbuild": "rm ./src/ui/index.directcss && ./scripts/copy-package-json.sh && node scripts/size-limit.mjs && pnpm run check-exports",
+    "postbuild": "rm ./src/ui/index.directcss && ./scripts/copy-package-json.sh && node scripts/size-limit.mjs && node scripts/bundle-graph.mjs && pnpm run check-exports",
     "build:umd": "webpack --config webpack.config.cjs",
     "build:watch": "concurrently \"pnpm run prebuild\" \"NODE_ENV=development pnpm run tsup:watch\" \"pnpm run start:server\"",
     "tsup:watch": "tsup --watch --onSuccess 'tsup --dts-only'",
@@ -78,6 +83,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "test": "jest",
+    "test:bundle-graph": "node ./scripts/bundle-graph.mjs",
     "publish:rc": "pnpm publish --tag rc"
   },
   "browserslist": {
@@ -93,7 +99,8 @@
     ]
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.17.4",
+    "@novu/agent-event-protocol": "workspace:*",
+    "@arethetypeswrong/cli": "^0.18.5",
     "@types/jest": "^29.2.3",
     "@types/node": "^22.0.0",
     "autoprefixer": "^10.4.0",
@@ -134,7 +141,7 @@
     "event-target-polyfill": "^0.0.4",
     "mitt": "^3.0.1",
     "partysocket": "^1.1.4",
-    "socket.io-client": "4.7.2",
+    "socket.io-client": "4.8.3",
     "solid-floating-ui": "^0.3.1",
     "solid-js": "^1.9.4",
     "solid-motionone": "^1.0.3",

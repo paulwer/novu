@@ -5,10 +5,10 @@ export type TableIntegration = {
   name: string;
   identifier: string;
   provider: string;
+  providerId: string;
   channel: ChannelTypeEnum;
   environment: string;
   active: boolean;
-  conditions?: string[];
   primary?: boolean;
   isPrimary?: boolean;
 };
@@ -22,6 +22,7 @@ export type IntegrationFormData = {
   configurations: Record<string, string>;
   check: boolean;
   environmentId: string;
+  rules?: Record<string, unknown> | null;
 };
 
 export type IntegrationStep = 'select' | 'configure';

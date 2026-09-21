@@ -31,6 +31,17 @@ export type ConfigConfigurationGroup = {
   setupWebhookUrlGuide?: string;
 };
 
+export interface IProviderDeprecation {
+  /** Self-contained sentence rendered as-is in the dashboard deprecation notice. */
+  reason: string;
+  /**
+   * Provider that supersedes this one. The dashboard links to its connect page,
+   * but only once its channel is visible to the organization — a replacement on a
+   * feature-flagged channel is announced without a click-through until then.
+   */
+  replacedBy?: ProvidersIdEnum;
+}
+
 export interface IProviderConfig {
   id: ProvidersIdEnum;
   displayName: string;
@@ -41,6 +52,7 @@ export interface IProviderConfig {
   docReference: string;
   comingSoon?: boolean;
   betaVersion?: boolean;
+  deprecated?: IProviderDeprecation;
 }
 
 export type ProviderColorToken =
@@ -87,6 +99,11 @@ export interface IConfigCredential {
   placeholder?: string;
   type: CredentialsType;
   required: boolean;
+  /**
+   * When true, the credential is managed automatically (e.g. server-generated)
+   * and should not be rendered in the integration settings form.
+   */
+  hidden?: boolean;
   tooltip?: {
     text: string;
     when?: boolean;

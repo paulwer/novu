@@ -12,8 +12,10 @@ import {
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayNotEmpty,
   IsArray,
   IsDefined,
+  IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
@@ -23,6 +25,7 @@ import {
 import { SdkApiProperty } from '../../shared/framework/swagger/sdk.decorators';
 import { CreateSubscriberRequestDto } from '../../subscribers/dtos';
 import { UpdateTenantRequestDto } from '../../tenant/dtos';
+import { IsTriggerRecipientsPayload } from '../validators/is-trigger-recipients-payload.validator';
 
 export class WorkflowToStepControlValuesDto {
   /**
@@ -48,7 +51,9 @@ export class SubscriberPayloadDto extends CreateSubscriberRequestDto {}
 export class TenantPayloadDto extends UpdateTenantRequestDto {}
 
 export class TopicPayloadDto {
-  @ApiProperty()
+  @ApiProperty({ minLength: 1 })
+  @IsString()
+  @IsNotEmpty({ message: 'topicKey is required' })
   topicKey: string;
 
   @ApiProperty({
@@ -247,7 +252,12 @@ export class TriggerEventRequestDto {
   @IsOptional()
   payload?: Record<string, unknown>;
 
-  @ApiHideProperty()
+  @ApiPropertyOptional({
+    description: `Optional Bridge Endpoint URL used to route this trigger to a specific Bridge application. Useful during local development when multiple engineers share an organization: set this to your personal tunnel URL from \`npx novu@latest dev\` (for example via NOVU_BRIDGE_URL) so app-fired triggers hit your machine instead of the environment's synced Bridge URL. Must be a publicly reachable https URL — private or localhost addresses are rejected.`,
+    type: 'string',
+    required: false,
+    example: 'https://your-tunnel.novu.co/api/novu',
+  })
   @IsString()
   @IsOptional()
   bridgeUrl?: string;
@@ -268,6 +278,19 @@ export class TriggerEventRequestDto {
   @IsOptional()
   overrides?: TriggerOverrides;
 
+  @ApiPropertyOptional({
+    description:
+      'Override the workflow-assigned agent for this trigger using the public agent identifier. Omit to use the workflow default; pass null to disable agent routing for this execution.',
+    type: 'string',
+    nullable: true,
+    example: 'support-agent',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @IsNotEmpty()
+  agentId?: string | null;
+
   @ApiProperty({
     description:
       'The recipients list of people who will receive the notification. Maximum number of recipients can be 100.',
@@ -284,6 +307,7 @@ export class TriggerEventRequestDto {
             },
             {
               type: 'string',
+              minLength: 1,
               description: 'Unique identifier of a subscriber in your systems',
               example: 'SUBSCRIBER_ID',
             },
@@ -292,6 +316,7 @@ export class TriggerEventRequestDto {
       },
       {
         type: 'string',
+        minLength: 1,
         description: 'Unique identifier of a subscriber in your systems',
         example: 'SUBSCRIBER_ID',
       },
@@ -304,6 +329,7 @@ export class TriggerEventRequestDto {
     ],
   })
   @IsDefined()
+  @IsTriggerRecipientsPayload()
   to: TriggerRecipientsPayload;
 
   @ApiPropertyOptional({
@@ -358,5 +384,9 @@ export class BulkTriggerEventDto {
     isArray: true,
     type: TriggerEventRequestDto,
   })
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => TriggerEventRequestDto)
   events: TriggerEventRequestDto[];
 }

@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import {
   AnalyticsService,
-  ClickHouseService,
   CreateExecutionDetails,
+  CreateStepConditionEvaluationDetail,
   CreateVariablesObject,
   FeatureFlagsService,
   GetDecryptedSecretKey,
@@ -10,7 +10,6 @@ import {
   GetLayoutUseCaseV0,
   InMemoryLRUCacheService,
   LayoutVariablesSchemaUseCase,
-  TraceLogRepository,
 } from '@novu/application-generic';
 import {
   CommunityOrganizationRepository,
@@ -25,15 +24,18 @@ import {
 } from '@novu/dal';
 import { NovuClient, NovuHandler } from '@novu/framework/nest';
 import { GetOrganizationSettings } from '../organization/usecases/get-organization-settings/get-organization-settings.usecase';
+import { SharedModule } from '../shared/shared.module';
 import { NovuBridgeController } from './novu-bridge.controller';
 import { NovuBridgeClient } from './novu-bridge-client';
 import { ConstructFrameworkWorkflow } from './usecases/construct-framework-workflow';
 import {
   ChatOutputRendererUsecase,
+  ControlsTranslationService,
   EmailOutputRendererUsecase,
   InAppOutputRendererUsecase,
   PushOutputRendererUsecase,
   SmsOutputRendererUsecase,
+  ToolOutputRendererUsecase,
 } from './usecases/output-renderers';
 import { DelayOutputRendererUsecase } from './usecases/output-renderers/delay-output-renderer.usecase';
 import { DigestOutputRendererUsecase } from './usecases/output-renderers/digest-output-renderer.usecase';
@@ -50,6 +52,7 @@ export const featureFlagsService = {
 };
 
 @Module({
+  imports: [SharedModule],
   controllers: [NovuBridgeController],
   providers: [
     {
@@ -67,11 +70,13 @@ export const featureFlagsService = {
     GetOrganizationSettings,
     ConstructFrameworkWorkflow,
     GetDecryptedSecretKey,
+    ControlsTranslationService,
     InAppOutputRendererUsecase,
     EmailOutputRendererUsecase,
     SmsOutputRendererUsecase,
     ChatOutputRendererUsecase,
     PushOutputRendererUsecase,
+    ToolOutputRendererUsecase,
     DelayOutputRendererUsecase,
     DigestOutputRendererUsecase,
     ThrottleOutputRendererUsecase,
@@ -82,9 +87,8 @@ export const featureFlagsService = {
     GetLayoutUseCase,
     JobRepository,
     ExecutionDetailsRepository,
-    TraceLogRepository,
-    ClickHouseService,
     CreateExecutionDetails,
+    CreateStepConditionEvaluationDetail,
     featureFlagsService,
     InMemoryLRUCacheService,
   ],

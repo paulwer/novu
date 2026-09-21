@@ -2,10 +2,11 @@ import { useFormContext } from 'react-hook-form';
 import { useValueEditor, ValueEditorProps } from 'react-querybuilder';
 import type { HelpTextInfo } from '@/components/conditions-editor/field-type-editors';
 import { shouldUseRelativeDateEditor } from '@/components/conditions-editor/field-type-editors';
+import { isValuelessOperator } from '@/components/conditions-editor/field-type-operators';
 import { HelpIcon } from '@/components/conditions-editor/help-icon';
-import { InputRoot, InputWrapper } from '@/components/primitives/input';
+import type { ConditionsValueInput } from '@/components/conditions-editor/types';
+import { InputPure, InputRoot, InputWrapper } from '@/components/primitives/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/primitives/select';
-import { ControlInput } from '@/components/workflow-editor/control-input';
 import { IsAllowedVariable, LiquidVariable } from '@/utils/parseStepVariables';
 
 type RelativeDateValue = {
@@ -18,6 +19,7 @@ type ExtendedContext = {
   isAllowedVariable: IsAllowedVariable;
   getPlaceholder?: (fieldName: string, operator: string) => string;
   getHelpText?: (fieldName: string, operator: string) => HelpTextInfo;
+  valueInput?: ConditionsValueInput;
 };
 
 const TIME_UNITS = [
@@ -29,6 +31,23 @@ const TIME_UNITS = [
   { value: 'years', label: 'years' },
 ] as const;
 
+/**
+ * Neutral default. The workflow editor injects `ControlInput`; integrations inject a
+ * sized plain input. Do not default to workflow `ControlInput` here.
+ */
+const DefaultConditionsValueInput: ConditionsValueInput = ({ value, onChange, placeholder, disabled }) => {
+
+  return (
+    <InputPure
+      className="text-paragraph-xs h-7 px-2"
+      value={value}
+      placeholder={placeholder}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+};
+
 type BaseEditorProps = {
   value: string;
   onChange: (newValue: string) => void;
@@ -38,25 +57,34 @@ type BaseEditorProps = {
   hasError: boolean;
   helpText: HelpTextInfo | null;
   errorMessage?: string;
+  disabled?: boolean;
+  ValueInput: ConditionsValueInput;
 };
 
 export const ValueEditor = (props: ValueEditorProps) => {
   const form = useFormContext();
   const queryPath = 'query.rules.' + props.path.join('.rules.') + '.value';
   const { error } = form.getFieldState(queryPath, form.formState);
-  const { variables = [], isAllowedVariable, getPlaceholder, getHelpText } = (props.context as ExtendedContext) ?? {};
-  const { value, handleOnChange, operator, field } = props;
+  const {
+    variables = [],
+    isAllowedVariable,
+    getPlaceholder,
+    getHelpText,
+    valueInput: ValueInput = DefaultConditionsValueInput,
+  } = (props.context as ExtendedContext) ?? {};
+  const { value, handleOnChange, operator, field, disabled } = props;
   const { valueAsArray, multiValueHandler } = useValueEditor(props);
   const stringValue = typeof value === 'string' ? value : `${value}`;
   const stringValueAsArray = valueAsArray.map((v) => (typeof v === 'string' ? v : `${v}`));
 
-  if (operator === 'null' || operator === 'notNull') {
+  if (isValuelessOperator(operator)) {
     return null;
   }
 
   const placeholder = getPlaceholder ? getPlaceholder(field, operator) : 'value';
   const helpText = getHelpText ? getHelpText(field, operator) : null;
   const hasError = !!error;
+  const isDisabled = !!disabled;
 
   if (shouldUseRelativeDateEditor(operator)) {
     return (
@@ -68,6 +96,8 @@ export const ValueEditor = (props: ValueEditorProps) => {
         hasError={hasError}
         helpText={helpText}
         errorMessage={error?.message}
+        disabled={isDisabled}
+        ValueInput={ValueInput}
       />
     );
   }
@@ -83,6 +113,8 @@ export const ValueEditor = (props: ValueEditorProps) => {
         hasError={hasError}
         helpText={helpText}
         errorMessage={error?.message}
+        disabled={isDisabled}
+        ValueInput={ValueInput}
       />
     );
   }
@@ -97,6 +129,8 @@ export const ValueEditor = (props: ValueEditorProps) => {
       hasError={hasError}
       helpText={helpText}
       errorMessage={error?.message}
+      disabled={isDisabled}
+      ValueInput={ValueInput}
     />
   );
 };
@@ -110,11 +144,13 @@ function SingleValueEditor({
   hasError,
   helpText,
   errorMessage,
+  disabled,
+  ValueInput,
 }: BaseEditorProps) {
   return (
     <InputRoot className="bg-bg-white w-48" hasError={hasError}>
       <InputWrapper className="gap-0 px-0">
-        <ControlInput
+        <ValueInput
           multiline={false}
           indentWithTab={false}
           placeholder={placeholder}
@@ -123,6 +159,7 @@ function SingleValueEditor({
           variables={variables}
           isAllowedVariable={isAllowedVariable}
           size="3xs"
+          disabled={disabled}
         />
         <HelpIcon hasError={hasError} errorMessage={errorMessage} helpText={helpText} />
       </InputWrapper>
@@ -139,6 +176,8 @@ function BetweenValueEditor({
   hasError,
   helpText,
   errorMessage,
+  disabled,
+  ValueInput,
 }: {
   valueAsArray: string[];
   multiValueHandler: (value: string, index: number) => void;
@@ -148,6 +187,8 @@ function BetweenValueEditor({
   hasError: boolean;
   helpText: HelpTextInfo | null;
   errorMessage?: string;
+  disabled?: boolean;
+  ValueInput: ConditionsValueInput;
 }) {
   const [fromPlaceholder, toPlaceholder] = placeholder.split(',').map((p) => p.trim());
 
@@ -158,7 +199,7 @@ function BetweenValueEditor({
     return (
       <InputRoot key={key} className="bg-bg-white w-28" hasError={hasInputError}>
         <InputWrapper className="gap-0 px-0">
-          <ControlInput
+          <ValueInput
             multiline={false}
             indentWithTab={false}
             placeholder={i === 0 ? fromPlaceholder : toPlaceholder}
@@ -167,6 +208,7 @@ function BetweenValueEditor({
             variables={variables}
             isAllowedVariable={isAllowedVariable}
             size="3xs"
+            disabled={disabled}
           />
           {isLastInput && <HelpIcon hasError={hasError} errorMessage={errorMessage} helpText={helpText} />}
         </InputWrapper>
@@ -191,6 +233,8 @@ function RelativeDateEditor({
   hasError,
   helpText,
   errorMessage,
+  disabled,
+  ValueInput,
 }: {
   value: string;
   onChange: (newValue: string) => void;
@@ -199,6 +243,8 @@ function RelativeDateEditor({
   hasError: boolean;
   helpText: HelpTextInfo | null;
   errorMessage?: string;
+  disabled?: boolean;
+  ValueInput: ConditionsValueInput;
 }) {
   const parseRelativeDateValue = (val: string): RelativeDateValue => {
     let parsedValue: RelativeDateValue = { amount: '', unit: 'days' };
@@ -264,7 +310,7 @@ function RelativeDateEditor({
     <div className="flex items-center gap-1">
       <InputRoot className="bg-bg-white w-32" hasError={hasError}>
         <InputWrapper className="gap-0 px-0">
-          <ControlInput
+          <ValueInput
             multiline={false}
             indentWithTab={false}
             placeholder={'Amount'}
@@ -273,12 +319,13 @@ function RelativeDateEditor({
             variables={variables}
             isAllowedVariable={isAllowedVariable || (() => true)}
             size="3xs"
+            disabled={disabled}
           />
           <HelpIcon hasError={hasError} errorMessage={errorMessage} helpText={helpText} contentWidth="w-[280px]" />
         </InputWrapper>
       </InputRoot>
 
-      <Select value={parsedValue.unit} onValueChange={handleUnitChange}>
+      <Select value={parsedValue.unit} onValueChange={handleUnitChange} disabled={disabled}>
         <SelectTrigger className="bg-bg-white text-paragraph-xs border-border-strong h-7 w-20 px-2">
           <SelectValue />
         </SelectTrigger>
